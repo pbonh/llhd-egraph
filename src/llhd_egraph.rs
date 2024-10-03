@@ -21,7 +21,8 @@ mod tests {
 
     #[test]
     fn llhd_egglog_dfg_datatypes() {
-        let expected_str = utilities::trim_expr_whitespace(&utilities::get_egglog_commands("llhd_dfg_sort.egg"));
+        let expected_str =
+            utilities::trim_expr_whitespace(&utilities::get_egglog_commands("llhd_dfg_sort.egg"));
         let llhd_dfg_sort: EgglogCommandList = LLHDEgglogSorts::llhd_dfg().into();
         assert_eq!(
             expected_str,

@@ -7,7 +7,6 @@ use llhd::ty::{Type, TypeKind};
 
 /// `Net` `ENode` Data within LLHD `Unit`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde-1", derive(serde::Serialize, serde::Deserialize))]
 pub struct LLHDENode {
     pub(crate) id: Value,
     pub(crate) ty: Type,
