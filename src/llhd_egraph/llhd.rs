@@ -330,8 +330,8 @@ mod tests {
         let test_module = utilities::load_llhd_module("2and_1or_common.llhd");
 
         let egglog_program = EgglogProgram::from(test_module);
-        assert_eq!(23, egglog_program.sorts().len());
-        assert_eq!(1, egglog_program.facts()[0].len());
+        assert_eq!(23, egglog_program.sorts().1.len());
+        assert_eq!(1, egglog_program.facts().1.len());
         assert_eq!(0, egglog_program.rules()[0].len());
         assert_eq!(0, egglog_program.schedules()[0].len());
         assert_eq!(1, egglog_program.bindings().len());

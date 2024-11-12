@@ -1,10 +1,9 @@
-use std::collections::HashSet;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Add;
 
 use derive_getters::Getters;
-use egglog::ast::{Command, Symbol};
+use egglog::ast::{Command, GenericAction, Symbol};
 use frunk::monoid::Monoid;
 use frunk::semigroup::Semigroup;
 use itertools::Itertools;
@@ -15,26 +14,23 @@ use super::schedule::EgglogSchedules;
 use super::sorts::EgglogSorts;
 use super::{EgglogCommandList, EgglogSymbols};
 
-type EgglogSortSymbols = HashSet<Symbol>;
-type EgglogSortList = Vec<EgglogSorts>;
-type EgglogFactList = Vec<EgglogFacts>;
+type EgglogProgramSorts = (EgglogSymbols, EgglogSorts);
+type EgglogProgramFacts = (EgglogSymbols, EgglogFacts);
 type EgglogRuleList = Vec<EgglogRules>;
 type EgglogScheduleList = Vec<EgglogSchedules>;
 
 #[derive(Debug, Clone, Default, Getters)]
 pub struct EgglogProgram {
-    sort_symbols: EgglogSortSymbols,
-    sorts: EgglogSorts,
-    facts: EgglogFactList,
+    sorts: EgglogProgramSorts,
+    facts: EgglogProgramFacts,
     rules: EgglogRuleList,
     schedules: EgglogScheduleList,
     bindings: EgglogSymbols,
 }
 
 pub struct EgglogProgramBuilder<State> {
-    sort_symbols: Option<EgglogSortSymbols>,
-    sorts: Option<EgglogSorts>,
-    facts: Option<EgglogFactList>,
+    sorts: Option<EgglogProgramSorts>,
+    facts: Option<EgglogProgramFacts>,
     rules: Option<EgglogRuleList>,
     schedules: Option<EgglogScheduleList>,
     bindings: Option<EgglogSymbols>,
@@ -62,7 +58,7 @@ impl InitRules for RulesState {}
 impl InitSchedules for SchedulesState {}
 impl InitBindings for BindingsState {}
 
-fn get_symbol(command: &Command) -> Vec<Symbol> {
+fn get_sort_symbol(command: &Command) -> Vec<Symbol> {
     match command {
         Command::Sort(_span, symbol, _expr) => vec![symbol.to_owned()],
         Command::Datatype {
@@ -84,10 +80,22 @@ fn get_symbol(command: &Command) -> Vec<Symbol> {
     }
 }
 
+fn get_fact_symbol(command: &Command) -> Symbol {
+    match command {
+        Command::Action(let_action) => {
+            if let GenericAction::Let(__span, let_stmt_symbol, _let_stmt) = let_action {
+                *let_stmt_symbol
+            } else {
+                panic!("Egglog Command not supported in EgglogFacts {:?}.", command)
+            }
+        }
+        _ => panic!("Egglog Command not supported in EgglogFacts {:?}.", command),
+    }
+}
+
 impl EgglogProgramBuilder<InitState> {
     pub const fn new() -> Self {
         Self {
-            sort_symbols: None,
             sorts: None,
             facts: None,
             rules: None,
@@ -98,12 +106,10 @@ impl EgglogProgramBuilder<InitState> {
     }
 
     pub fn sorts(self, sorts: EgglogSorts) -> EgglogProgramBuilder<SortsState> {
-        let sort_symbol_lists: Vec<Vec<Symbol>> =
-            sorts.iter().map(|sort| get_symbol(sort)).collect_vec();
-        let sort_symbols: EgglogSortSymbols = sort_symbol_lists.into_iter().flatten().collect();
+        let sort_symbol_lists: Vec<Vec<Symbol>> = sorts.iter().map(get_sort_symbol).collect_vec();
+        let sort_symbols: EgglogSymbols = sort_symbol_lists.into_iter().flatten().collect();
         EgglogProgramBuilder {
-            sort_symbols: Some(sort_symbols),
-            sorts: Some(sorts),
+            sorts: Some((sort_symbols, sorts)),
             facts: self.facts,
             rules: self.rules,
             schedules: None,
@@ -115,10 +121,11 @@ impl EgglogProgramBuilder<InitState> {
 
 impl EgglogProgramBuilder<SortsState> {
     pub fn facts(self, facts: EgglogFacts) -> EgglogProgramBuilder<FactsState> {
+        let fact_symbol_lists: Vec<Symbol> = facts.iter().map(get_fact_symbol).collect_vec();
+        let fact_symbols: EgglogSymbols = fact_symbol_lists.into_iter().collect();
         EgglogProgramBuilder {
-            sort_symbols: self.sort_symbols,
             sorts: self.sorts,
-            facts: Some(vec![facts]),
+            facts: Some((fact_symbols, facts)),
             rules: self.rules,
             schedules: None,
             bindings: None,
@@ -130,7 +137,6 @@ impl EgglogProgramBuilder<SortsState> {
 impl EgglogProgramBuilder<FactsState> {
     pub fn rules(self, rules: EgglogRules) -> EgglogProgramBuilder<RulesState> {
         EgglogProgramBuilder {
-            sort_symbols: self.sort_symbols,
             sorts: self.sorts,
             facts: self.facts,
             rules: Some(vec![rules]),
@@ -144,7 +150,6 @@ impl EgglogProgramBuilder<FactsState> {
 impl EgglogProgramBuilder<RulesState> {
     pub fn schedules(self, schedules: EgglogSchedules) -> EgglogProgramBuilder<SchedulesState> {
         EgglogProgramBuilder {
-            sort_symbols: self.sort_symbols,
             sorts: self.sorts,
             facts: self.facts,
             rules: self.rules,
@@ -158,7 +163,6 @@ impl EgglogProgramBuilder<RulesState> {
 impl EgglogProgramBuilder<SchedulesState> {
     pub fn bindings(self, bindings: EgglogSymbols) -> EgglogProgramBuilder<BindingsState> {
         EgglogProgramBuilder {
-            sort_symbols: self.sort_symbols,
             sorts: self.sorts,
             facts: self.facts,
             rules: self.rules,
@@ -172,9 +176,6 @@ impl EgglogProgramBuilder<SchedulesState> {
 impl EgglogProgramBuilder<BindingsState> {
     pub fn program(self) -> EgglogProgram {
         EgglogProgram {
-            sort_symbols: self
-                .sort_symbols
-                .expect("SortSymbols Guaranteed at compile-time."),
             sorts: self.sorts.expect("Sorts Guaranteed at compile-time."),
             facts: self.facts.expect("Facts Guaranteed at compile-time."),
             rules: self.rules.expect("Rules Guaranteed at compile-time."),
@@ -188,18 +189,30 @@ impl EgglogProgramBuilder<BindingsState> {
 
 impl Semigroup for EgglogProgram {
     fn combine(&self, program_update: &Self) -> Self {
-        let combined_sorts = self.sorts.clone().add_sorts(
+        let combined_sorts = self.sorts.1.clone().add_sorts(
             program_update
                 .sorts
+                .1
                 .clone()
                 .into_iter()
-                .filter(|sort| !self.sort_symbols.contains(&get_symbol(sort)[0]))
+                .filter(|sort| !self.sorts.0.contains(&get_sort_symbol(sort)[0]))
                 .collect_vec(),
         );
-        let mut combined_sort_symbols = self.sort_symbols.clone();
-        combined_sort_symbols.extend(program_update.sort_symbols.clone());
-        let mut combined_facts = self.facts.clone();
-        combined_facts.append(&mut program_update.facts.clone());
+        let mut combined_sort_symbols = self.sorts.0.clone();
+        combined_sort_symbols.extend(program_update.sorts.0.clone());
+
+        let combined_facts = self.facts.1.clone().add_facts(
+            program_update
+                .facts
+                .1
+                .clone()
+                .into_iter()
+                .filter(|fact| !self.facts.0.contains(&get_fact_symbol(fact)))
+                .collect_vec(),
+        );
+        let mut combined_fact_symbols = self.facts.0.clone();
+        combined_fact_symbols.extend(program_update.facts.0.clone());
+
         let mut combined_rules = self.rules.clone();
         combined_rules.append(&mut program_update.rules.clone());
         let mut combined_schedules = self.schedules.clone();
@@ -207,9 +220,8 @@ impl Semigroup for EgglogProgram {
         let mut combined_bindings = self.bindings.clone();
         combined_bindings.extend(program_update.bindings.clone());
         Self {
-            sort_symbols: combined_sort_symbols,
-            sorts: combined_sorts,
-            facts: combined_facts,
+            sorts: (combined_sort_symbols, combined_sorts),
+            facts: (combined_fact_symbols, combined_facts),
             rules: combined_rules,
             schedules: combined_schedules,
             bindings: combined_bindings,
@@ -227,15 +239,24 @@ impl Add for EgglogProgram {
     type Output = Self;
 
     fn add(mut self, mut rhs: Self) -> Self::Output {
-        self.sorts = self.sorts.add_sorts(
+        self.sorts.1 = self.sorts.1.add_sorts(
             rhs.sorts
+                .1
                 .clone()
                 .into_iter()
-                .filter(|sort| !self.sort_symbols.contains(&get_symbol(sort)[0]))
+                .filter(|sort| !self.sorts.0.contains(&get_sort_symbol(sort)[0]))
                 .collect_vec(),
         );
-        self.sort_symbols.extend(rhs.sort_symbols);
-        self.facts.append(&mut rhs.facts);
+        self.sorts.0.extend(rhs.sorts.0);
+        self.facts.1 = self.facts.1.add_facts(
+            rhs.facts
+                .1
+                .clone()
+                .into_iter()
+                .filter(|fact| !self.facts.0.contains(&get_fact_symbol(fact)))
+                .collect_vec(),
+        );
+        self.facts.0.extend(rhs.facts.0);
         self.rules.append(&mut rhs.rules);
         self.schedules.append(&mut rhs.schedules);
         self.bindings.extend(rhs.bindings);
@@ -247,9 +268,10 @@ impl From<EgglogProgram> for EgglogCommandList {
     fn from(program: EgglogProgram) -> Self {
         program
             .sorts
+            .1
             .into_iter()
             .chain(
-                program.facts.into_iter().flatten().chain(
+                program.facts.1.into_iter().chain(
                     program
                         .rules
                         .into_iter()
@@ -333,8 +355,8 @@ mod tests {
             .bindings(symbols2)
             .program();
         let updated_egglog_program = egglog_program.combine(&egglog_program_update);
-        assert_eq!(11, updated_egglog_program.sorts.len());
-        assert_eq!(2, updated_egglog_program.facts.len());
+        assert_eq!(11, updated_egglog_program.sorts.1.len());
+        assert_eq!(1, updated_egglog_program.facts.1.len());
         assert_eq!(2, updated_egglog_program.rules.len());
         assert_eq!(2, updated_egglog_program.schedules.len());
         assert_eq!(3, updated_egglog_program.bindings.len());
@@ -441,9 +463,9 @@ mod tests {
             .bindings(symbols2)
             .program();
         let updated_egglog_program = egglog_program + egglog_program_update;
-        assert_eq!(81, updated_egglog_program.sort_symbols.len());
-        assert_eq!(11, updated_egglog_program.sorts.len());
-        assert_eq!(2, updated_egglog_program.facts.len());
+        assert_eq!(81, updated_egglog_program.sorts.0.len());
+        assert_eq!(11, updated_egglog_program.sorts.1.len());
+        assert_eq!(1, updated_egglog_program.facts.1.len());
         assert_eq!(2, updated_egglog_program.rules.len());
         assert_eq!(2, updated_egglog_program.schedules.len());
         let updated_egglog_program_cmds: EgglogCommandList = updated_egglog_program.into();
@@ -544,9 +566,9 @@ mod tests {
             .bindings(symbols2)
             .program();
         let updated_egglog_program = egglog_program + egglog_program_update;
-        assert_eq!(76, updated_egglog_program.sort_symbols.len());
-        assert_eq!(8, updated_egglog_program.sorts.len());
-        assert_eq!(2, updated_egglog_program.facts.len());
+        assert_eq!(76, updated_egglog_program.sorts.0.len());
+        assert_eq!(8, updated_egglog_program.sorts.1.len());
+        assert_eq!(1, updated_egglog_program.facts.1.len());
         assert_eq!(2, updated_egglog_program.rules.len());
         assert_eq!(2, updated_egglog_program.schedules.len());
         let updated_egglog_program_cmds: EgglogCommandList = updated_egglog_program.into();
