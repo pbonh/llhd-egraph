@@ -5,7 +5,7 @@ use egglog::ast::{
     Action, Command, Expr, FunctionDecl, GenericActions, GenericCommand, GenericExpr, Literal,
     Schema, Symbol, Variant, DUMMY_SPAN,
 };
-use egglog::sort::{Sort, StringSort, U64Sort};
+use egglog::sort::{I64Sort, Sort, StringSort};
 use itertools::Itertools;
 use llhd::ir::prelude::*;
 use llhd::ir::ValueData;
@@ -74,9 +74,9 @@ fn from_unit(unit: &Unit<'_>) -> Action {
     let unit_sig = unit.sig().clone();
     let unit_id_expr = Expr::Lit(
         DUMMY_SPAN.clone(),
-        Literal::UInt(
-            u64::try_from(unit_id.index())
-                .expect("Out-of-bound value for usize -> u64 conversion."),
+        Literal::Int(
+            i64::try_from(unit_id.index())
+                .expect("Out-of-bound value for usize -> i64 conversion."),
         ),
     );
     let unit_kind_symbol = match unit_kind {
@@ -177,9 +177,6 @@ fn process_expr_fifo(
                 Literal::Int(_value) => {
                     value_stack.push_back(literal_llhd_value(&literal));
                 }
-                Literal::UInt(_value) => {
-                    value_stack.push_back(literal_llhd_value(&literal));
-                }
                 Literal::String(_value) => {
                     time_value_stack.push_back(expr_time_value(&literal));
                 }
@@ -249,12 +246,6 @@ fn process_arg_expr(expr: &Expr, type_expr_fifo: &mut LLHDTypeFIFO) {
                                     .expect("Failure to convert egglog Int to usize."),
                             ));
                         }
-                        Literal::UInt(uid) => {
-                            type_expr_fifo.push_back(llhd::int_ty(
-                                usize::try_from(*uid)
-                                    .expect("Failure to convert egglog UInt to usize."),
-                            ));
-                        }
                         _ => {}
                     }
                 };
@@ -280,14 +271,6 @@ pub(crate) fn expr_to_unit_info(unit_expr: Expr) -> (UnitKind, UnitName, Signatu
                 UnitName::anonymous(
                     iid.try_into()
                         .expect("Failure to convert egglog Int to u32."),
-                ),
-                default_unit_info.2,
-            ),
-            Literal::UInt(uid) => (
-                default_unit_info.0,
-                UnitName::anonymous(
-                    uid.try_into()
-                        .expect("Failure to convert egglog UInt to u32."),
                 ),
                 default_unit_info.2,
             ),
@@ -452,11 +435,11 @@ fn type_functions() -> EgglogCommandList {
         ignore_viz: false,
         span: DUMMY_SPAN.clone(),
     });
-    let u64_sort = U64Sort::new(EGGLOG_U64_SORT.into());
+    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
     let int_function = GenericCommand::Function(FunctionDecl {
         name: Symbol::new(LLHD_TYPE_INT_FIELD),
         schema: Schema {
-            input: vec![u64_sort.name()],
+            input: vec![i64_sort.name()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
         default: None,
@@ -470,7 +453,7 @@ fn type_functions() -> EgglogCommandList {
     let enum_function = GenericCommand::Function(FunctionDecl {
         name: Symbol::new(LLHD_TYPE_ENUM_FIELD),
         schema: Schema {
-            input: vec![u64_sort.name()],
+            input: vec![i64_sort.name()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
         default: None,
@@ -512,7 +495,7 @@ fn type_functions() -> EgglogCommandList {
     let array_function = GenericCommand::Function(FunctionDecl {
         name: Symbol::new(LLHD_TYPE_ARRAY_FIELD),
         schema: Schema {
-            input: vec![u64_sort.name(), LLHD_TYPE_DATATYPE.into()],
+            input: vec![i64_sort.name(), LLHD_TYPE_DATATYPE.into()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
         default: None,
@@ -607,12 +590,12 @@ fn unit_kind_sort() -> Command {
 }
 
 fn value() -> Command {
-    let u64_sort = U64Sort::new(EGGLOG_U64_SORT.into());
+    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
     let ty_datatype = Symbol::new(LLHD_TYPE_DATATYPE);
     let value_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_VALUE_FIELD),
-        types: vec![ty_datatype, u64_sort.name()],
+        types: vec![ty_datatype, i64_sort.name()],
         cost: None,
     };
     let symbol = Symbol::new(LLHD_VALUE_DATATYPE);
@@ -624,11 +607,11 @@ fn value() -> Command {
 }
 
 fn int_value() -> Command {
-    let u64_sort = U64Sort::new(EGGLOG_U64_SORT.into());
+    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
     let int_value_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_INT_VALUE_FIELD),
-        types: vec![u64_sort.name()],
+        types: vec![i64_sort.name()],
         cost: None,
     };
     let symbol = Symbol::new(LLHD_INT_VALUE_DATATYPE);
@@ -640,11 +623,11 @@ fn int_value() -> Command {
 }
 
 fn time_value() -> Command {
-    let u64_sort = U64Sort::new(EGGLOG_U64_SORT.into());
+    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
     let time_value_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_TIME_VALUE_FIELD),
-        types: vec![u64_sort.name()],
+        types: vec![i64_sort.name()],
         cost: None,
     };
     let symbol = Symbol::new(LLHD_TIME_VALUE_DATATYPE);
@@ -720,11 +703,11 @@ fn vec_regmode_sort() -> Command {
 }
 
 fn block() -> Command {
-    let u64_sort = U64Sort::new(EGGLOG_U64_SORT.into());
+    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
     let block_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_BLOCK_FIELD),
-        types: vec![u64_sort.name()],
+        types: vec![i64_sort.name()],
         cost: None,
     };
     let symbol = Symbol::new(LLHD_BLOCK_DATATYPE);
@@ -738,7 +721,7 @@ fn block() -> Command {
 fn vec_block() -> Command {
     let vec_sort_symbol = Symbol::new(LLHD_VEC_BLOCK_DATATYPE);
     let symbol_vec = Symbol::new(EGGLOG_VEC_SORT);
-    let vec_block_datatype = U64Sort::new(LLHD_BLOCK_DATATYPE.into());
+    let vec_block_datatype = I64Sort::new(LLHD_BLOCK_DATATYPE.into());
     let vec_block_expr = Expr::Var(DUMMY_SPAN.clone(), vec_block_datatype.name());
     Command::Sort(
         DUMMY_SPAN.clone(),
@@ -748,11 +731,11 @@ fn vec_block() -> Command {
 }
 
 fn ext_unit() -> Command {
-    let u64_sort = U64Sort::new(EGGLOG_U64_SORT.into());
+    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
     let ext_unit_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_EXT_UNIT_FIELD),
-        types: vec![u64_sort.name()],
+        types: vec![i64_sort.name()],
         cost: None,
     };
     let symbol = Symbol::new(LLHD_EXT_UNIT_DATATYPE);
@@ -764,13 +747,13 @@ fn ext_unit() -> Command {
 }
 
 fn unit() -> Command {
-    let u64_sort = U64Sort::new(EGGLOG_U64_SORT.into());
+    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
     let string_sort = StringSort::new(EGGLOG_STRING_SORT.into());
     let unit_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_UNIT_FIELD),
         types: vec![
-            u64_sort.name(),
+            i64_sort.name(),
             LLHD_UNIT_KIND_DATATYPE.into(),
             string_sort.name(),
             LLHD_VEC_VALUE_DATATYPE.into(),
@@ -783,7 +766,7 @@ fn unit() -> Command {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_UNIT_DECL_FIELD),
         types: vec![
-            u64_sort.name(),
+            i64_sort.name(),
             LLHD_UNIT_KIND_DATATYPE.into(),
             string_sort.name(),
             LLHD_VEC_VALUE_DATATYPE.into(),
@@ -887,17 +870,17 @@ mod tests {
 
         let egglog_expr = from_unit(&unit);
         let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
-            (let unit_0 (LLHDUnit 
-                _0
+            (let unit_0 (LLHDUnit
+                0
                 (Entity)
                 \"%0\"
-                (vec-of (Value (Signal (Int _1)) _0) (Value (Signal (Int _1)) _1) (Value (Signal (Int _1)) _2))
-                (vec-of (Value (Signal (Int _32)) _3))
-                (Add _5 (Int _1)
-                    (Add _3 (Int _1)
-                        (ConstInt _1 (Int _1) \"i1 0\")
-                        (ConstInt _2 (Int _1) \"i1 1\"))
-                    (Prb _4 (Int _1) (ValueRef (Value (Signal (Int _1)) _2))))))
+                (vec-of (Value (Signal (Int 1)) 0) (Value (Signal (Int 1)) 1) (Value (Signal (Int 1)) 2))
+                (vec-of (Value (Signal (Int 32)) 3))
+                (Add 5 (Int 1)
+                    (Add 3 (Int 1)
+                        (ConstInt 1 (Int 1) \"i1 0\")
+                        (ConstInt 2 (Int 1) \"i1 1\"))
+                    (Prb 4 (Int 1) (ValueRef (Value (Signal (Int 1)) 2))))))
         "});
         assert_eq!(
             expected_str,
@@ -937,21 +920,21 @@ mod tests {
         let egglog_expr = from_unit(&unit);
         let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
             (let unit_test_entity (LLHDUnit
-                _0
+                0
                 (Entity)
                 \"@test_entity\"
-                (vec-of (Value (Int _1) _0) (Value (Int _1) _1) (Value (Int _1) _2) (Value (Int _1) _3))
-                (vec-of (Value (Signal (Int _1)) _4))
-                (Drv _5 (Void)
-                    (ValueRef (Value (Signal (Int _1)) _4))
-                    (Or _4 (Int _1)
-                        (And _2 (Int _1)
-                            (ValueRef (Value (Int _1) _0))
-                            (ValueRef (Value (Int _1) _1)))
-                        (And _3 (Int _1)
-                            (ValueRef (Value (Int _1) _2))
-                            (ValueRef (Value (Int _1) _3))))
-                    (ConstTime _1 (Time) \"0s 1e\"))))
+                (vec-of (Value (Int 1) 0) (Value (Int 1) 1) (Value (Int 1) 2) (Value (Int 1) 3))
+                (vec-of (Value (Signal (Int 1)) 4))
+                (Drv 5 (Void)
+                    (ValueRef (Value (Signal (Int 1)) 4))
+                    (Or 4 (Int 1)
+                        (And 2 (Int 1)
+                            (ValueRef (Value (Int 1) 0))
+                            (ValueRef (Value (Int 1) 1)))
+                        (And 3 (Int 1)
+                            (ValueRef (Value (Int 1) 2))
+                            (ValueRef (Value (Int 1) 3))))
+                    (ConstTime 1 (Time) \"0s 1e\"))))
         "});
         assert_eq!(
             expected_str,
@@ -1142,26 +1125,26 @@ mod tests {
     #[test]
     fn llhd_egglog_value_datatypes() {
         let value_datatype = value();
-        let expected_str = "(datatype LLHDValue (Value LLHDTy u64))".to_owned();
+        let expected_str = "(datatype LLHDValue (Value LLHDTy i64))".to_owned();
         assert_eq!(
             expected_str,
             value_datatype.to_string(),
-            "Datatype should be named 'LLHDValue' and should have 1 field named (Value u64)."
+            "Datatype should be named 'LLHDValue' and should have 1 field named (Value i64)."
         );
         let int_value_datatype = int_value();
-        let int_expected_str = "(datatype LLHDIntValue (IntValue u64))".to_owned();
+        let int_expected_str = "(datatype LLHDIntValue (IntValue i64))".to_owned();
         assert_eq!(
             int_expected_str,
             int_value_datatype.to_string(),
-            "Datatype should be named 'LLHDIntValue' and should have 1 field named (IntValue u64)."
+            "Datatype should be named 'LLHDIntValue' and should have 1 field named (IntValue i64)."
         );
         let time_value_datatype = time_value();
-        let time_expected_str = "(datatype LLHDTimeValue (TimeValue u64))".to_owned();
+        let time_expected_str = "(datatype LLHDTimeValue (TimeValue i64))".to_owned();
         assert_eq!(
             time_expected_str,
             time_value_datatype.to_string(),
             "Datatype should be named 'LLHDTimeValue' and should have 1 field named (TimeValue \
-             u64)."
+             i64)."
         );
         let reg_mode_datatype = reg_mode();
         let reg_mode_expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
@@ -1186,7 +1169,7 @@ mod tests {
         assert_eq!(
             expected_str,
             vec_sort.to_string(),
-            "Sort should be named 'LLHDVecValue' and should have 1 field named (Vec u64)."
+            "Sort should be named 'LLHDVecValue' and should have 1 field named (Vec i64)."
         );
         let vec_regmode_sort = vec_regmode_sort();
         let vec_regmode_expected_str = "(sort LLHDVecRegMode (Vec LLHDRegMode))".to_owned();
@@ -1201,11 +1184,11 @@ mod tests {
     #[test]
     fn llhd_egglog_block_datatypes() {
         let block_datatype = block();
-        let expected_str = "(datatype LLHDBlock (Block u64))".to_owned();
+        let expected_str = "(datatype LLHDBlock (Block i64))".to_owned();
         assert_eq!(
             expected_str,
             block_datatype.to_string(),
-            "Datatype should be named 'LLHDBlock' and should have 1 field named (Block u64)."
+            "Datatype should be named 'LLHDBlock' and should have 1 field named (Block i64)."
         );
     }
 
@@ -1224,11 +1207,11 @@ mod tests {
     #[test]
     fn llhd_egglog_ext_unit_datatypes() {
         let ext_unit_datatype = ext_unit();
-        let expected_str = "(datatype LLHDExtUnit (ExtUnit u64))".to_owned();
+        let expected_str = "(datatype LLHDExtUnit (ExtUnit i64))".to_owned();
         assert_eq!(
             expected_str,
             ext_unit_datatype.to_string(),
-            "Datatype should be named 'LLHDExtUnit' and should have 1 field named (ExtUnit u64)."
+            "Datatype should be named 'LLHDExtUnit' and should have 1 field named (ExtUnit i64)."
         );
     }
 }

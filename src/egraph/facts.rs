@@ -76,7 +76,7 @@ mod tests {
         let let_stmt1 = GenericCommand::Action(Action::Let(
             DUMMY_SPAN.clone(),
             Symbol::new("var1"),
-            Expr::Lit(DUMMY_SPAN.clone(), Literal::UInt(0)),
+            Expr::Lit(DUMMY_SPAN.clone(), Literal::Int(0)),
         ));
         let egglog_sorts = EgglogFacts::default().add_facts(vec![let_stmt1]);
         assert_eq!(

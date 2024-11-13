@@ -5,7 +5,7 @@ use llhd::ir::{InstData, ValueData};
 use llhd::table::TableKey;
 use llhd::{IntValue, TimeValue, Type};
 
-use crate::egraph::egglog_names::{EGGLOG_STRING_SORT, EGGLOG_U64_SORT};
+use crate::egraph::egglog_names::{EGGLOG_I64_SORT, EGGLOG_STRING_SORT};
 use crate::egraph::EgglogCommandList;
 use crate::llhd_egraph::datatype::{value_ref_variant, variant};
 use crate::llhd_egraph::egglog_names::*;
@@ -18,45 +18,45 @@ lazy_static! {
         value_ref_variant(),
         variant(
             Opcode::ConstInt,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, EGGLOG_STRING_SORT]
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, EGGLOG_STRING_SORT]
         ),
         variant(
             Opcode::ConstTime,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, EGGLOG_STRING_SORT]
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, EGGLOG_STRING_SORT]
         ),
         variant(
             Opcode::Alias,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
         ),
         variant(
             Opcode::ArrayUniform,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_DFG_DATATYPE
             ]
         ),
         variant(
             Opcode::Array,
-            vec![EGGLOG_U64_SORT, LLHD_VEC_VALUE_DATATYPE]
+            vec![EGGLOG_I64_SORT, LLHD_VEC_VALUE_DATATYPE]
         ),
         variant(
             Opcode::Struct,
-            vec![EGGLOG_U64_SORT, LLHD_VEC_VALUE_DATATYPE]
+            vec![EGGLOG_I64_SORT, LLHD_VEC_VALUE_DATATYPE]
         ),
         variant(
             Opcode::Not,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
         ),
         variant(
             Opcode::Neg,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
         ),
         variant(
             Opcode::Add,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -65,7 +65,7 @@ lazy_static! {
         variant(
             Opcode::Sub,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -74,7 +74,7 @@ lazy_static! {
         variant(
             Opcode::And,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -83,7 +83,7 @@ lazy_static! {
         variant(
             Opcode::Or,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -92,7 +92,7 @@ lazy_static! {
         variant(
             Opcode::Xor,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -101,7 +101,7 @@ lazy_static! {
         variant(
             Opcode::Smul,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -110,7 +110,7 @@ lazy_static! {
         variant(
             Opcode::Sdiv,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -119,7 +119,7 @@ lazy_static! {
         variant(
             Opcode::Smod,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -128,7 +128,7 @@ lazy_static! {
         variant(
             Opcode::Srem,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -137,7 +137,7 @@ lazy_static! {
         variant(
             Opcode::Umul,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -146,7 +146,7 @@ lazy_static! {
         variant(
             Opcode::Udiv,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -155,7 +155,7 @@ lazy_static! {
         variant(
             Opcode::Umod,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -164,7 +164,7 @@ lazy_static! {
         variant(
             Opcode::Urem,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -173,7 +173,7 @@ lazy_static! {
         variant(
             Opcode::Eq,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -182,7 +182,7 @@ lazy_static! {
         variant(
             Opcode::Neq,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -191,7 +191,7 @@ lazy_static! {
         variant(
             Opcode::Slt,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -200,7 +200,7 @@ lazy_static! {
         variant(
             Opcode::Sgt,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -209,7 +209,7 @@ lazy_static! {
         variant(
             Opcode::Sle,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -218,7 +218,7 @@ lazy_static! {
         variant(
             Opcode::Sge,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -227,7 +227,7 @@ lazy_static! {
         variant(
             Opcode::Ult,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -236,7 +236,7 @@ lazy_static! {
         variant(
             Opcode::Ugt,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -245,7 +245,7 @@ lazy_static! {
         variant(
             Opcode::Ule,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -254,7 +254,7 @@ lazy_static! {
         variant(
             Opcode::Uge,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -263,7 +263,7 @@ lazy_static! {
         variant(
             Opcode::Shl,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE,
@@ -273,7 +273,7 @@ lazy_static! {
         variant(
             Opcode::Shr,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE,
@@ -283,7 +283,7 @@ lazy_static! {
         variant(
             Opcode::Mux,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -292,7 +292,7 @@ lazy_static! {
         variant(
             Opcode::Reg,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_VEC_VALUE_DATATYPE,
                 LLHD_VEC_REGMODE_DATATYPE
@@ -301,51 +301,51 @@ lazy_static! {
         variant(
             Opcode::InsField,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE,
-                EGGLOG_U64_SORT,
-                EGGLOG_U64_SORT
+                EGGLOG_I64_SORT,
+                EGGLOG_I64_SORT
             ]
         ),
         variant(
             Opcode::InsSlice,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE,
-                EGGLOG_U64_SORT,
-                EGGLOG_U64_SORT
+                EGGLOG_I64_SORT,
+                EGGLOG_I64_SORT
             ]
         ),
         variant(
             Opcode::ExtField,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE,
-                EGGLOG_U64_SORT,
-                EGGLOG_U64_SORT
+                EGGLOG_I64_SORT,
+                EGGLOG_I64_SORT
             ]
         ),
         variant(
             Opcode::ExtSlice,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE,
-                EGGLOG_U64_SORT,
-                EGGLOG_U64_SORT
+                EGGLOG_I64_SORT,
+                EGGLOG_I64_SORT
             ]
         ),
         variant(
             Opcode::Con,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
@@ -354,7 +354,7 @@ lazy_static! {
         variant(
             Opcode::Del,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE,
@@ -364,35 +364,35 @@ lazy_static! {
         variant(
             Opcode::Call,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_EXT_UNIT_DATATYPE,
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_VEC_VALUE_DATATYPE
             ]
         ),
         variant(
             Opcode::Inst,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_EXT_UNIT_DATATYPE,
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_VEC_VALUE_DATATYPE
             ]
         ),
         variant(
             Opcode::Sig,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
         ),
         variant(
             Opcode::Prb,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE]
         ),
         variant(
             Opcode::Drv,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE,
@@ -402,7 +402,7 @@ lazy_static! {
         variant(
             Opcode::DrvCond,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE,
@@ -412,40 +412,40 @@ lazy_static! {
         ),
         variant(
             Opcode::Var,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE],
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE],
         ),
         variant(
             Opcode::Ld,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE],
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE],
         ),
         variant(
             Opcode::St,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_DFG_DATATYPE
             ],
         ),
-        variant(Opcode::Halt, vec![EGGLOG_U64_SORT,],),
-        variant(Opcode::Ret, vec![EGGLOG_U64_SORT,],),
+        variant(Opcode::Halt, vec![EGGLOG_I64_SORT,],),
+        variant(Opcode::Ret, vec![EGGLOG_I64_SORT,],),
         variant(
             Opcode::RetValue,
-            vec![EGGLOG_U64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE],
+            vec![EGGLOG_I64_SORT, LLHD_TYPE_DATATYPE, LLHD_DFG_DATATYPE],
         ),
         variant(
             Opcode::Phi,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_VEC_VALUE_DATATYPE,
                 LLHD_VEC_BLOCK_DATATYPE
             ]
         ),
-        variant(Opcode::Br, vec![EGGLOG_U64_SORT, LLHD_BLOCK_DATATYPE]),
+        variant(Opcode::Br, vec![EGGLOG_I64_SORT, LLHD_BLOCK_DATATYPE]),
         variant(
             Opcode::BrCond,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_TYPE_DATATYPE,
                 LLHD_DFG_DATATYPE,
                 LLHD_BLOCK_DATATYPE,
@@ -455,7 +455,7 @@ lazy_static! {
         variant(
             Opcode::Wait,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_BLOCK_DATATYPE,
                 LLHD_VEC_VALUE_DATATYPE
             ]
@@ -463,7 +463,7 @@ lazy_static! {
         variant(
             Opcode::WaitTime,
             vec![
-                EGGLOG_U64_SORT,
+                EGGLOG_I64_SORT,
                 LLHD_BLOCK_DATATYPE,
                 LLHD_VEC_VALUE_DATATYPE
             ]
@@ -504,9 +504,9 @@ pub(in crate::llhd_egraph) fn ty_expr(llhd_ty: &Type) -> Expr {
             vec![],
         )
     } else if llhd_ty.is_int() {
-        let int_value = Literal::UInt(
-            u64::try_from(llhd_ty.unwrap_int())
-                .expect("Out-of-bound value for usize -> u64 conversion."),
+        let int_value = Literal::Int(
+            i64::try_from(llhd_ty.unwrap_int())
+                .expect("Out-of-bound value for usize -> i64 conversion."),
         );
         let literal_value = GenericExpr::Lit(DUMMY_SPAN.clone(), int_value);
         GenericExpr::Call(
@@ -546,9 +546,9 @@ pub(in crate::llhd_egraph) fn ty_expr(llhd_ty: &Type) -> Expr {
 pub(crate) fn value_def_expr(value_ty: Type, table_key: impl TableKey) -> Expr {
     let value_ty_expr = ty_expr(&value_ty);
 
-    let converted_u64_num =
-        u64::try_from(table_key.index()).expect("Out-of-bound value for usize -> u64 conversion.");
-    let converted_literal = Literal::UInt(converted_u64_num);
+    let converted_i64_num =
+        i64::try_from(table_key.index()).expect("Out-of-bound value for usize -> i64 conversion.");
+    let converted_literal = Literal::Int(converted_i64_num);
     let literal_value = GenericExpr::Lit(DUMMY_SPAN.clone(), converted_literal);
 
     let llhd_value_datatype_symbol = Symbol::new(LLHD_VALUE_FIELD);
@@ -562,9 +562,9 @@ pub(crate) fn value_def_expr(value_ty: Type, table_key: impl TableKey) -> Expr {
 pub(crate) fn value_ref_expr(value_ty: Type, table_key: impl TableKey) -> Expr {
     let value_ty_expr = ty_expr(&value_ty);
 
-    let converted_u64_num =
-        u64::try_from(table_key.index()).expect("Out-of-bound value for usize -> u64 conversion.");
-    let converted_literal = Literal::UInt(converted_u64_num);
+    let converted_i64_num =
+        i64::try_from(table_key.index()).expect("Out-of-bound value for usize -> i64 conversion.");
+    let converted_literal = Literal::Int(converted_i64_num);
     let literal_value = GenericExpr::Lit(DUMMY_SPAN.clone(), converted_literal);
 
     let llhd_value_datatype_symbol = Symbol::new(LLHD_VALUE_FIELD);
@@ -593,10 +593,7 @@ fn value_data_expr(unit: &Unit<'_>, value_data: &ValueData) -> Expr {
 pub(in crate::llhd_egraph) fn literal_llhd_value(literal: &Literal) -> Value {
     match literal {
         Literal::Int(value) => {
-            Value::new(usize::try_from(*value).expect("Failure to convert from u64 to usize."))
-        }
-        Literal::UInt(value) => {
-            Value::new(usize::try_from(*value).expect("Failure to convert from u64 to usize."))
+            Value::new(usize::try_from(*value).expect("Failure to convert from i64 to usize."))
         }
         _ => panic!("Non-Int Literal"),
     }
@@ -611,7 +608,7 @@ pub(super) fn expr_int_value(literal: &Literal) -> IntValue {
     match literal {
         Literal::Int(value) => IntValue::from_isize(
             64,
-            isize::try_from(*value).expect("Failure to convert from u64 to isize."),
+            isize::try_from(*value).expect("Failure to convert from i64 to isize."),
         ),
         _ => panic!("Non-Int Literal"),
     }
@@ -635,9 +632,9 @@ pub(in crate::llhd_egraph) fn inst_expr(
     let inst_symbol = opcode_symbol(inst_data.opcode());
     let inst_id_literal = GenericExpr::Lit(
         DUMMY_SPAN.clone(),
-        Literal::UInt(
-            u64::try_from(inst_id.index())
-                .expect("Out-of-bound value for usize -> u64 conversion."),
+        Literal::Int(
+            i64::try_from(inst_id.index())
+                .expect("Out-of-bound value for usize -> i64 conversion."),
         ),
     );
     let inst_ty_expr = ty_expr(&inst_ty);
@@ -689,64 +686,64 @@ mod tests {
         let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
             (datatype LLHDDFG
                 (ValueRef LLHDValue)
-                (ConstInt u64 LLHDTy String)
-                (ConstTime u64 LLHDTy String)
-                (Alias u64 LLHDTy LLHDDFG)
-                (ArrayUniform u64 LLHDTy u64 LLHDDFG)
-                (Array u64 LLHDVecValue)
-                (Struct u64 LLHDVecValue)
-                (Not u64 LLHDTy LLHDDFG)
-                (Neg u64 LLHDTy LLHDDFG)
-                (Add u64 LLHDTy LLHDDFG LLHDDFG)
-                (Sub u64 LLHDTy LLHDDFG LLHDDFG)
-                (And u64 LLHDTy LLHDDFG LLHDDFG)
-                (Or u64 LLHDTy LLHDDFG LLHDDFG)
-                (Xor u64 LLHDTy LLHDDFG LLHDDFG)
-                (Smul u64 LLHDTy LLHDDFG LLHDDFG)
-                (Sdiv u64 LLHDTy LLHDDFG LLHDDFG)
-                (Smod u64 LLHDTy LLHDDFG LLHDDFG)
-                (Srem u64 LLHDTy LLHDDFG LLHDDFG)
-                (Umul u64 LLHDTy LLHDDFG LLHDDFG)
-                (Udiv u64 LLHDTy LLHDDFG LLHDDFG)
-                (Umod u64 LLHDTy LLHDDFG LLHDDFG)
-                (Urem u64 LLHDTy LLHDDFG LLHDDFG)
-                (Eq u64 LLHDTy LLHDDFG LLHDDFG)
-                (Neq u64 LLHDTy LLHDDFG LLHDDFG)
-                (Slt u64 LLHDTy LLHDDFG LLHDDFG)
-                (Sgt u64 LLHDTy LLHDDFG LLHDDFG)
-                (Sle u64 LLHDTy LLHDDFG LLHDDFG)
-                (Sge u64 LLHDTy LLHDDFG LLHDDFG)
-                (Ult u64 LLHDTy LLHDDFG LLHDDFG)
-                (Ugt u64 LLHDTy LLHDDFG LLHDDFG)
-                (Ule u64 LLHDTy LLHDDFG LLHDDFG)
-                (Uge u64 LLHDTy LLHDDFG LLHDDFG)
-                (Shl u64 LLHDTy LLHDDFG LLHDDFG LLHDDFG)
-                (Shr u64 LLHDTy LLHDDFG LLHDDFG LLHDDFG)
-                (Mux u64 LLHDTy LLHDDFG LLHDDFG)
-                (Reg u64 LLHDTy LLHDVecValue LLHDVecRegMode)
-                (InsField u64 LLHDTy LLHDDFG LLHDDFG u64 u64)
-                (InsSlice u64 LLHDTy LLHDDFG LLHDDFG u64 u64)
-                (ExtField u64 LLHDTy LLHDDFG LLHDDFG u64 u64)
-                (ExtSlice u64 LLHDTy LLHDDFG LLHDDFG u64 u64)
-                (Con u64 LLHDTy LLHDDFG LLHDDFG)
-                (Del u64 LLHDTy LLHDDFG LLHDDFG LLHDDFG)
-                (Call u64 LLHDTy LLHDExtUnit u64 LLHDVecValue)
-                (Inst u64 LLHDTy LLHDExtUnit u64 LLHDVecValue)
-                (Sig u64 LLHDTy LLHDDFG)
-                (Prb u64 LLHDTy LLHDDFG)
-                (Drv u64 LLHDTy LLHDDFG LLHDDFG LLHDDFG)
-                (DrvCond u64 LLHDTy LLHDDFG LLHDDFG LLHDDFG LLHDDFG)
-                (Var u64 LLHDTy LLHDDFG)
-                (Ld u64 LLHDTy LLHDDFG)
-                (St u64 LLHDTy LLHDDFG LLHDDFG)
-                (Halt u64)
-                (Ret u64)
-                (RetValue u64 LLHDTy LLHDDFG)
-                (Phi u64 LLHDVecValue LLHDVecBlock)
-                (Br u64 LLHDBlock)
-                (BrCond u64 LLHDTy LLHDDFG LLHDBlock LLHDBlock)
-                (Wait u64 LLHDBlock LLHDVecValue)
-                (WaitTime u64 LLHDBlock LLHDVecValue)
+                (ConstInt i64 LLHDTy String)
+                (ConstTime i64 LLHDTy String)
+                (Alias i64 LLHDTy LLHDDFG)
+                (ArrayUniform i64 LLHDTy i64 LLHDDFG)
+                (Array i64 LLHDVecValue)
+                (Struct i64 LLHDVecValue)
+                (Not i64 LLHDTy LLHDDFG)
+                (Neg i64 LLHDTy LLHDDFG)
+                (Add i64 LLHDTy LLHDDFG LLHDDFG)
+                (Sub i64 LLHDTy LLHDDFG LLHDDFG)
+                (And i64 LLHDTy LLHDDFG LLHDDFG)
+                (Or i64 LLHDTy LLHDDFG LLHDDFG)
+                (Xor i64 LLHDTy LLHDDFG LLHDDFG)
+                (Smul i64 LLHDTy LLHDDFG LLHDDFG)
+                (Sdiv i64 LLHDTy LLHDDFG LLHDDFG)
+                (Smod i64 LLHDTy LLHDDFG LLHDDFG)
+                (Srem i64 LLHDTy LLHDDFG LLHDDFG)
+                (Umul i64 LLHDTy LLHDDFG LLHDDFG)
+                (Udiv i64 LLHDTy LLHDDFG LLHDDFG)
+                (Umod i64 LLHDTy LLHDDFG LLHDDFG)
+                (Urem i64 LLHDTy LLHDDFG LLHDDFG)
+                (Eq i64 LLHDTy LLHDDFG LLHDDFG)
+                (Neq i64 LLHDTy LLHDDFG LLHDDFG)
+                (Slt i64 LLHDTy LLHDDFG LLHDDFG)
+                (Sgt i64 LLHDTy LLHDDFG LLHDDFG)
+                (Sle i64 LLHDTy LLHDDFG LLHDDFG)
+                (Sge i64 LLHDTy LLHDDFG LLHDDFG)
+                (Ult i64 LLHDTy LLHDDFG LLHDDFG)
+                (Ugt i64 LLHDTy LLHDDFG LLHDDFG)
+                (Ule i64 LLHDTy LLHDDFG LLHDDFG)
+                (Uge i64 LLHDTy LLHDDFG LLHDDFG)
+                (Shl i64 LLHDTy LLHDDFG LLHDDFG LLHDDFG)
+                (Shr i64 LLHDTy LLHDDFG LLHDDFG LLHDDFG)
+                (Mux i64 LLHDTy LLHDDFG LLHDDFG)
+                (Reg i64 LLHDTy LLHDVecValue LLHDVecRegMode)
+                (InsField i64 LLHDTy LLHDDFG LLHDDFG i64 i64)
+                (InsSlice i64 LLHDTy LLHDDFG LLHDDFG i64 i64)
+                (ExtField i64 LLHDTy LLHDDFG LLHDDFG i64 i64)
+                (ExtSlice i64 LLHDTy LLHDDFG LLHDDFG i64 i64)
+                (Con i64 LLHDTy LLHDDFG LLHDDFG)
+                (Del i64 LLHDTy LLHDDFG LLHDDFG LLHDDFG)
+                (Call i64 LLHDTy LLHDExtUnit i64 LLHDVecValue)
+                (Inst i64 LLHDTy LLHDExtUnit i64 LLHDVecValue)
+                (Sig i64 LLHDTy LLHDDFG)
+                (Prb i64 LLHDTy LLHDDFG)
+                (Drv i64 LLHDTy LLHDDFG LLHDDFG LLHDDFG)
+                (DrvCond i64 LLHDTy LLHDDFG LLHDDFG LLHDDFG LLHDDFG)
+                (Var i64 LLHDTy LLHDDFG)
+                (Ld i64 LLHDTy LLHDDFG)
+                (St i64 LLHDTy LLHDDFG LLHDDFG)
+                (Halt i64)
+                (Ret i64)
+                (RetValue i64 LLHDTy LLHDDFG)
+                (Phi i64 LLHDVecValue LLHDVecBlock)
+                (Br i64 LLHDBlock)
+                (BrCond i64 LLHDTy LLHDDFG LLHDBlock LLHDBlock)
+                (Wait i64 LLHDBlock LLHDVecValue)
+                (WaitTime i64 LLHDBlock LLHDVecValue)
             )
         "});
         assert_eq!(
@@ -764,7 +761,7 @@ mod tests {
         let unit_sig = unit.sig();
         let value1_ty = unit_sig.arg_type(Arg::new(1));
         let value1_expr = value_ref_expr(value1_ty, value1);
-        let expected_str = "(ValueRef (Value (Signal (Int _1)) _1))";
+        let expected_str = "(ValueRef (Value (Signal (Int 1)) 1))";
         assert_eq!(
             expected_str,
             value1_expr.to_string(),
@@ -780,7 +777,7 @@ mod tests {
         let unit_sig = unit.sig();
         let value1_ty = unit_sig.arg_type(Arg::new(1));
         let value1_expr = value_def_expr(value1_ty, value1);
-        let expected_str = "(Value (Signal (Int _1)) _1)";
+        let expected_str = "(Value (Signal (Int 1)) 1)";
         assert_eq!(
             expected_str,
             value1_expr.to_string(),
@@ -801,11 +798,11 @@ mod tests {
             if let ValueData::Inst { ty, .. } = add2_value_data {
                 let add2_expr = inst_expr(&unit, add2_inst.1, ty.clone(), add2_inst_data);
                 let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
-                    (Add _5 (Int _1)
-                        (Add _3 (Int _1)
-                            (ConstInt _1 (Int _1) \"i1 0\")
-                            (ConstInt _2 (Int _1) \"i1 1\"))
-                        (Prb _4 (Int _1) (ValueRef (Value (Signal (Int _1)) _2))))
+                    (Add 5 (Int 1)
+                        (Add 3 (Int 1)
+                            (ConstInt 1 (Int 1) \"i1 0\")
+                            (ConstInt 2 (Int 1) \"i1 1\"))
+                        (Prb 4 (Int 1) (ValueRef (Value (Signal (Int 1)) 2))))
                 "});
                 assert_eq!(
                     expected_str,
