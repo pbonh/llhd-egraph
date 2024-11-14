@@ -16,6 +16,10 @@ pub mod module;
 /// LLHD Unit Data
 pub mod unit;
 
+/// LLHD Utilities
+pub mod utilities;
+pub use utilities::*;
+
 use llhd::ir::{Inst, UnitId, Value};
 
 /// `Net/Value` Identifier within LLHD `Unit`
