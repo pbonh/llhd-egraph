@@ -1093,18 +1093,18 @@ mod tests {
             inst_const_time_data.opcode(),
             "First Inst should be `const time`."
         );
-        let inst_and1_id = new_unit_insts[1];
-        let inst_and1_data = new_unit_data[inst_and1_id].clone();
-        assert_eq!(
-            Opcode::Or,
-            inst_and1_data.opcode(),
-            "Second Inst should be `or`."
-        );
-        let inst_or1_id = new_unit_insts[2];
+        let inst_or1_id = new_unit_insts[1];
         let inst_or1_data = new_unit_data[inst_or1_id].clone();
         assert_eq!(
-            Opcode::And,
+            Opcode::Or,
             inst_or1_data.opcode(),
+            "Second Inst should be `or`."
+        );
+        let inst_and1_id = new_unit_insts[2];
+        let inst_and1_data = new_unit_data[inst_and1_id].clone();
+        assert_eq!(
+            Opcode::And,
+            inst_and1_data.opcode(),
             "Third Inst should be `And`."
         );
         let inst_drv1_id = new_unit_insts[3];

@@ -176,7 +176,7 @@ impl From<EgglogProgram> for Module {
             let extract_cmd = GenericCommand::QueryExtract {
                 span: DUMMY_SPAN.clone(),
                 variants: 0,
-                expr: GenericExpr::Var(DUMMY_SPAN.clone(), unit_symbol.clone()),
+                expr: GenericExpr::Var(DUMMY_SPAN.clone(), unit_symbol),
             };
             if let Err(egraph_extract_err) = egraph.run_program(vec![extract_cmd]) {
                 println!("Cannot extract expression: {:?}", egraph_extract_err);

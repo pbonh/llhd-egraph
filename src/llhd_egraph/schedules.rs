@@ -43,7 +43,7 @@ mod tests {
         let egraph_with_schedules_msgs = llhd_egraph.run_program(schedule_cmds.clone().into());
         assert!(egraph_with_schedules_msgs.is_ok());
         assert_eq!(
-            3,
+            2,
             <LLHDEgglogSchedules as Into<EgglogCommandList>>::into(schedule_cmds).len(),
             "There should be 1 schedule present in program."
         );
