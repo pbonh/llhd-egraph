@@ -156,9 +156,14 @@ fn process_expr(expr: &Expr, expr_fifo: &mut ExprFIFO) {
         GenericExpr::Call(_, symbol, dependencies) => {
             if opcode::get_symbol_opcode(symbol).is_some() {
                 expr_fifo.push_front(Expr::Call(DUMMY_SPAN.clone(), symbol.to_owned(), vec![]));
-            }
-            for dep in dependencies {
-                process_expr(dep, expr_fifo);
+                for dep in dependencies.iter().skip(2).rev() {
+                    process_expr(dep, expr_fifo);
+                }
+            } else if Symbol::new(LLHD_TYPE_INT_FIELD) == *symbol {
+            } else {
+                for dep in dependencies.iter() {
+                    process_expr(dep, expr_fifo);
+                }
             }
         }
     }
@@ -180,52 +185,66 @@ fn process_expr_fifo(
                 Literal::String(_value) => {
                     time_value_stack.push_back(expr_time_value(&literal));
                 }
-                _ => {}
+                _ => {
+                    panic!("Unhandled GenericExpr::Literal => {:?}", literal)
+                }
             },
-            GenericExpr::Var(_span, _symbol) => {}
+            GenericExpr::Var(_span, symbol) => {
+                panic!("Unhandled ExprFIFO GenericExpr::Var Symbol => {:?}", symbol)
+            }
             GenericExpr::Call(_, symbol, _dependencies) => {
                 if let Some(opcode) = opcode::get_symbol_opcode(&symbol) {
                     match opcode {
                         Opcode::Or => {
-                            let arg2_value = value_stack
-                                .pop_back()
-                                .expect("Stack empty despite still trying to process operation.");
-                            let arg1_value = value_stack
-                                .pop_back()
-                                .expect("Stack empty despite still trying to process operation.");
+                            println!("Opcode::Or value_stack => {:?}", value_stack);
+                            let arg2_value = value_stack.pop_back().expect(
+                                "Or arg2 Stack empty despite still trying to process operation.",
+                            );
+                            let arg1_value = value_stack.pop_back().expect(
+                                "Or arg1 Stack empty despite still trying to process operation.",
+                            );
                             value_stack.push_back(unit_builder.ins().or(arg1_value, arg2_value));
                         }
                         Opcode::And => {
-                            let arg2_value = value_stack
-                                .pop_back()
-                                .expect("Stack empty despite still trying to process operation.");
-                            let arg1_value = value_stack
-                                .pop_back()
-                                .expect("Stack empty despite still trying to process operation.");
+                            println!("Opcode::And value_stack => {:?}", value_stack);
+                            let arg2_value = value_stack.pop_back().expect(
+                                "And arg2 Stack empty despite still trying to process operation.",
+                            );
+                            let arg1_value = value_stack.pop_back().expect(
+                                "And arg1 Stack empty despite still trying to process operation.",
+                            );
                             value_stack.push_back(unit_builder.ins().and(arg1_value, arg2_value));
                         }
                         Opcode::ConstTime => {
+                            println!("Opcode::ConstTime value_stack => {:?}", value_stack);
+                            println!(
+                                "Opcode::ConstTime time_value_stack => {:?}",
+                                time_value_stack
+                            );
                             let arg1_value = time_value_stack
                                 .pop_back()
-                                .expect("Stack empty despite still trying to process operation.");
+                                .expect("ConstTime arg1 Stack empty despite still trying to process operation.");
                             value_stack.push_back(unit_builder.ins().const_time(arg1_value));
                         }
                         Opcode::Drv => {
-                            let arg3_value = value_stack
-                                .pop_back()
-                                .expect("Stack empty despite still trying to process operation.");
-                            let arg2_value = value_stack
-                                .pop_back()
-                                .expect("Stack empty despite still trying to process operation.");
-                            let arg1_value = value_stack
-                                .pop_back()
-                                .expect("Stack empty despite still trying to process operation.");
+                            println!("Opcode::Drv value_stack => {:?}", value_stack);
+                            let arg3_value = value_stack.pop_back().expect(
+                                "Drv arg3 Stack empty despite still trying to process operation.",
+                            );
+                            let arg2_value = value_stack.pop_back().expect(
+                                "Drv arg2 Stack empty despite still trying to process operation.",
+                            );
+                            let arg1_value = value_stack.pop_back().expect(
+                                "Drv arg1 Stack empty despite still trying to process operation.",
+                            );
                             let _ = unit_builder.ins().drv(arg1_value, arg2_value, arg3_value);
                         }
                         _ => {
-                            println!("Unknown opcode.");
+                            panic!("Unhandled opcode => {:?}", opcode);
                         }
                     }
+                } else {
+                    panic!("Unhandled symbol => {:?}", symbol)
                 }
             }
         }
@@ -374,6 +393,7 @@ pub(crate) fn expr_to_unit_data(
     let mut expr_fifo: ExprFIFO = Default::default();
 
     process_expr(&unit_expr, &mut expr_fifo);
+    println!("process_expr => {:?}", expr_fifo);
 
     let mut value_stack: ValueStack = Default::default();
     let mut int_value_stack: IntValueStack = Default::default();
