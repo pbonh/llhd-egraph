@@ -20,6 +20,7 @@ mod tests {
     use crate::llhd::LLHDModuleTester;
     use crate::llhd_egraph::datatype::LLHDEgglogSorts;
     use crate::llhd_egraph::rules::LLHDEgglogRules;
+    use crate::llhd_egraph::schedules::LLHDEgglogSchedules;
     use crate::llhd_egraph::unit::LLHDEgglogFacts;
 
     use super::llhd::LLHDEgglogProgram;
@@ -42,7 +43,7 @@ mod tests {
     }
 
     #[test]
-    fn llhd_rewrite_egglog_program_concise() {
+    fn llhd_rewrite_egglog_program_concise1() {
         let test_module = utilities::load_llhd_module("2and_1or_common.llhd");
         let test_module_facts = LLHDEgglogFacts::from_module(&test_module);
         let llhd_bindings: EgglogSymbols = test_module
@@ -71,6 +72,29 @@ mod tests {
             .schedules(llhd_egglog_schedule)
             .bindings(llhd_bindings)
             .program();
+
+        let extracted_module = Module::from(egglog_program);
+        let expected_module = utilities::load_llhd_module("2and_1or_common_extracted.llhd");
+        let extracted_module_data = LLHDModuleTester::from(extracted_module);
+        let expected_module_data = LLHDModuleTester::from(expected_module);
+        assert_eq!(
+            expected_module_data, extracted_module_data,
+            "Extracted Module doesn't match expected Module after divisor extraction."
+        );
+    }
+
+    #[test]
+    fn llhd_rewrite_egglog_program_concise2() {
+        let test_module = utilities::load_llhd_module("2and_1or_common.llhd");
+        let llhd_egglog_rule =
+            LLHDEgglogRules::from_str(&utilities::get_egglog_commands("llhd_div_extract.egg"))
+                .unwrap();
+        let llhd_egglog_schedule = LLHDEgglogSchedules::from_str(&utilities::get_egglog_commands(
+            "llhd_div_extract_schedule.egg",
+        ))
+        .unwrap();
+        let egglog_program =
+            EgglogProgram::from((test_module, llhd_egglog_rule, llhd_egglog_schedule));
 
         let extracted_module = Module::from(egglog_program);
         let expected_module = utilities::load_llhd_module("2and_1or_common_extracted.llhd");

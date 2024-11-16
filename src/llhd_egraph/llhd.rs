@@ -147,6 +147,24 @@ impl From<Module> for EgglogProgram {
     }
 }
 
+impl From<(Module, LLHDEgglogRules, LLHDEgglogSchedules)> for EgglogProgram {
+    fn from(data: (Module, LLHDEgglogRules, LLHDEgglogSchedules)) -> Self {
+        let (module, llhd_rules, llhd_schedules) = data;
+        let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
+        let module_facts = LLHDEgglogFacts::from_module(&module);
+        let rules = EgglogRules::from(llhd_rules);
+        let schedules = EgglogSchedules::from(llhd_schedules);
+        let unit_symbols: EgglogSymbols = module.units().map(unit_symbol).collect();
+        EgglogProgramBuilder::<InitState>::new()
+            .sorts(llhd_dfg_sort.into())
+            .facts(module_facts.into())
+            .rules(rules)
+            .schedules(schedules)
+            .bindings(unit_symbols)
+            .program()
+    }
+}
+
 impl From<&Module> for EgglogProgram {
     fn from(module: &Module) -> Self {
         let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
@@ -204,10 +222,9 @@ impl From<EgglogProgram> for Module {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use itertools::Itertools;
     use llhd::ir::{UnitKind, UnitName};
+    use std::str::FromStr;
 
     use super::*;
 

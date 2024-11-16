@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use egglog::Error;
 
+use crate::egraph::schedule::EgglogSchedules;
 use crate::egraph::EgglogCommandList;
 use crate::llhd_egraph::llhd::LLHDEGraph;
 
@@ -23,6 +24,14 @@ impl FromStr for LLHDEgglogSchedules {
 impl From<LLHDEgglogSchedules> for EgglogCommandList {
     fn from(schedules: LLHDEgglogSchedules) -> Self {
         schedules.0
+    }
+}
+
+impl From<LLHDEgglogSchedules> for EgglogSchedules {
+    fn from(llhd_schedules: LLHDEgglogSchedules) -> Self {
+        Self::default().add_schedule(<LLHDEgglogSchedules as Into<EgglogCommandList>>::into(
+            llhd_schedules,
+        ))
     }
 }
 
