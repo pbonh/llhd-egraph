@@ -11,17 +11,18 @@ pub mod schedules;
 mod tests {
     use egglog::ast::Symbol;
     use itertools::Itertools;
-    use llhd::ir::prelude::*;
     use std::str::FromStr;
 
-    use crate::egraph::schedule::EgglogSchedules;
-    use crate::egraph::EgglogCommandList;
-    use crate::egraph::*;
+    use crate::llhd::module::LLHDModule;
     use crate::llhd::LLHDModuleTester;
     use crate::llhd_egraph::datatype::LLHDEgglogSorts;
+    use crate::llhd_egraph::llhd::LLHDEgglogRuleset;
     use crate::llhd_egraph::rules::LLHDEgglogRules;
     use crate::llhd_egraph::schedules::LLHDEgglogSchedules;
     use crate::llhd_egraph::unit::LLHDEgglogFacts;
+    use egglog_program::egraph::schedule::EgglogSchedules;
+    use egglog_program::egraph::EgglogCommandList;
+    use egglog_program::egraph::*;
 
     use super::llhd::LLHDEgglogProgram;
 
@@ -73,7 +74,7 @@ mod tests {
             .bindings(llhd_bindings)
             .program();
 
-        let extracted_module = Module::from(egglog_program);
+        let extracted_module = LLHDModule::from(egglog_program);
         let expected_module = utilities::load_llhd_module("2and_1or_common_extracted.llhd");
         let extracted_module_data = LLHDModuleTester::from(extracted_module);
         let expected_module_data = LLHDModuleTester::from(expected_module);
@@ -85,7 +86,7 @@ mod tests {
 
     #[test]
     fn llhd_rewrite_egglog_program_concise2() {
-        let test_module = utilities::load_llhd_module("2and_1or_common.llhd");
+        let test_module: LLHDModule = utilities::load_llhd_module("2and_1or_common.llhd").into();
         let llhd_egglog_rule =
             LLHDEgglogRules::from_str(&utilities::get_egglog_commands("llhd_div_extract.egg"))
                 .unwrap();
@@ -93,10 +94,14 @@ mod tests {
             "llhd_div_extract_schedule.egg",
         ))
         .unwrap();
-        let egglog_program =
-            EgglogProgram::from((test_module, llhd_egglog_rule, llhd_egglog_schedule));
+        let test_module_ruleset = LLHDEgglogRuleset {
+            module: test_module,
+            rules: llhd_egglog_rule,
+            schedules: llhd_egglog_schedule,
+        };
+        let egglog_program = EgglogProgram::from(test_module_ruleset);
 
-        let extracted_module = Module::from(egglog_program);
+        let extracted_module = LLHDModule::from(egglog_program);
         let expected_module = utilities::load_llhd_module("2and_1or_common_extracted.llhd");
         let extracted_module_data = LLHDModuleTester::from(extracted_module);
         let expected_module_data = LLHDModuleTester::from(expected_module);

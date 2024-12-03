@@ -5,10 +5,10 @@ use llhd::ir::{InstData, ValueData};
 use llhd::table::TableKey;
 use llhd::{IntValue, TimeValue, Type};
 
-use crate::egraph::egglog_names::{EGGLOG_I64_SORT, EGGLOG_STRING_SORT};
-use crate::egraph::EgglogCommandList;
 use crate::llhd_egraph::datatype::{value_ref_variant, variant};
 use crate::llhd_egraph::egglog_names::*;
+use egglog_program::egraph::egglog_names::{EGGLOG_I64_SORT, EGGLOG_STRING_SORT};
+use egglog_program::egraph::EgglogCommandList;
 
 pub(in crate::llhd_egraph) mod opcode;
 use opcode::opcode_symbol;

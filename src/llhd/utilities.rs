@@ -1,3 +1,4 @@
+use crate::llhd::module::LLHDModule;
 use itertools::Itertools;
 use llhd::ir::prelude::*;
 use std::collections::HashSet;
@@ -38,6 +39,13 @@ impl From<Module> for LLHDModuleTester {
                 })
                 .collect(),
         }
+    }
+}
+
+impl From<LLHDModule> for LLHDModuleTester {
+    fn from(llhd_module: LLHDModule) -> Self {
+        let module = Module::from(llhd_module);
+        Self::from(module)
     }
 }
 

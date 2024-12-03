@@ -2,9 +2,9 @@ use std::str::FromStr;
 
 use egglog::Error;
 
-use crate::egraph::schedule::EgglogSchedules;
-use crate::egraph::EgglogCommandList;
 use crate::llhd_egraph::llhd::LLHDEGraph;
+use egglog_program::egraph::schedule::EgglogSchedules;
+use egglog_program::egraph::EgglogCommandList;
 
 #[derive(Debug, Clone, Default)]
 pub struct LLHDEgglogSchedules(pub(in crate::llhd_egraph) EgglogCommandList);

@@ -2,17 +2,17 @@ use std::ops::{Deref, DerefMut};
 
 use egglog::ast::{GenericCommand, GenericExpr, DUMMY_SPAN};
 use egglog::{EGraph, Error, TermDag};
-use llhd::ir::Module;
 use typed_builder::TypedBuilder;
 
 use super::datatype::LLHDEgglogSorts;
 use super::rules::LLHDEgglogRules;
 use super::schedules::LLHDEgglogSchedules;
 use super::unit::LLHDEgglogFacts;
-use crate::egraph::rules::EgglogRules;
-use crate::egraph::schedule::EgglogSchedules;
-use crate::egraph::{EgglogProgram, EgglogProgramBuilder, EgglogSymbols, InitState};
+use crate::llhd::module::LLHDModule;
 use crate::llhd_egraph::unit::{expr_to_unit_data, expr_to_unit_info, unit_symbol};
+use egglog_program::egraph::rules::EgglogRules;
+use egglog_program::egraph::schedule::EgglogSchedules;
+use egglog_program::egraph::{EgglogProgram, EgglogProgramBuilder, EgglogSymbols, InitState};
 
 #[derive(Debug, Clone, Default, TypedBuilder)]
 pub struct LLHDEgglogProgram {
@@ -130,8 +130,8 @@ where
     }
 }
 
-impl From<Module> for EgglogProgram {
-    fn from(module: Module) -> Self {
+impl From<LLHDModule> for EgglogProgram {
+    fn from(module: LLHDModule) -> Self {
         let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
         let module_facts = LLHDEgglogFacts::from_module(&module);
         let rules = EgglogRules::default();
@@ -147,9 +147,15 @@ impl From<Module> for EgglogProgram {
     }
 }
 
-impl From<(Module, LLHDEgglogRules, LLHDEgglogSchedules)> for EgglogProgram {
-    fn from(data: (Module, LLHDEgglogRules, LLHDEgglogSchedules)) -> Self {
-        let (module, llhd_rules, llhd_schedules) = data;
+pub struct LLHDEgglogRuleset {
+    pub module: LLHDModule,
+    pub rules: LLHDEgglogRules,
+    pub schedules: LLHDEgglogSchedules,
+}
+
+impl From<LLHDEgglogRuleset> for EgglogProgram {
+    fn from(data: LLHDEgglogRuleset) -> Self {
+        let (module, llhd_rules, llhd_schedules) = (data.module, data.rules, data.schedules);
         let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
         let module_facts = LLHDEgglogFacts::from_module(&module);
         let rules = EgglogRules::from(llhd_rules);
@@ -165,8 +171,8 @@ impl From<(Module, LLHDEgglogRules, LLHDEgglogSchedules)> for EgglogProgram {
     }
 }
 
-impl From<&Module> for EgglogProgram {
-    fn from(module: &Module) -> Self {
+impl From<&LLHDModule> for EgglogProgram {
+    fn from(module: &LLHDModule) -> Self {
         let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
         let module_facts = LLHDEgglogFacts::from_module(module);
         let rules = EgglogRules::default();
@@ -182,10 +188,10 @@ impl From<&Module> for EgglogProgram {
     }
 }
 
-impl From<EgglogProgram> for Module {
+impl From<EgglogProgram> for LLHDModule {
     fn from(program: EgglogProgram) -> Self {
         let unit_symbols = program.bindings().to_owned();
-        let mut module = Self::new();
+        let mut module = Self::default();
         let mut egraph = EGraph::default();
         if let Err(err_msg) = egraph.run_program(program.into()) {
             panic!("Failure to run EgglogProgram. Err: {:?}", err_msg);
@@ -344,7 +350,7 @@ mod tests {
 
     #[test]
     fn egglog_program_from_llhd_module() {
-        let test_module = utilities::load_llhd_module("2and_1or_common.llhd");
+        let test_module: LLHDModule = utilities::load_llhd_module("2and_1or_common.llhd").into();
 
         let egglog_program = EgglogProgram::from(test_module);
         assert_eq!(23, egglog_program.sorts().1.len());
@@ -353,7 +359,7 @@ mod tests {
         assert_eq!(0, egglog_program.schedules()[0].len());
         assert_eq!(1, egglog_program.bindings().len());
 
-        let round_trip_test_module = Module::from(egglog_program);
+        let round_trip_test_module = LLHDModule::from(egglog_program);
         let unit_ids = round_trip_test_module
             .units()
             .map(|unit| unit.id())

@@ -5,14 +5,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-llhd = "0.16.0"
-itertools = "0.13.0"
-rayon = "1.10.0"
-typed-builder = "0.20.0"
-derive-getters = "0.5.0"
-frunk = "0.4.3"
-lazy_static = "1.5.0"
-egglog = "0.3.0"
+llhd = { workspace = true }
+egglog = { workspace = true }
+egglog-program = { path = "../egglog-program" }
+itertools = { workspace = true }
+rayon = { workspace = true }
+typed-builder = { workspace = true }
+derive-getters = { workspace = true }
+frunk = { workspace = true }
+lazy_static = { workspace = true }
 
 [dev-dependencies]
 indoc = "2.0.4"

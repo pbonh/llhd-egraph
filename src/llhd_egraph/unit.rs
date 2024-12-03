@@ -13,13 +13,13 @@ use llhd::table::TableKey;
 use llhd::{IntValue, TimeValue, Type, TypeKind};
 use rayon::iter::ParallelIterator;
 
-use crate::egraph::egglog_names::*;
-use crate::egraph::facts::EgglogFacts;
-use crate::egraph::EgglogCommandList;
 use crate::llhd::LLHDUtils;
 use crate::llhd_egraph::datatype::unit_root_variant_symbol;
 use crate::llhd_egraph::egglog_names::*;
 use crate::llhd_egraph::inst::*;
+use egglog_program::egraph::egglog_names::*;
+use egglog_program::egraph::facts::EgglogFacts;
+use egglog_program::egraph::EgglogCommandList;
 
 #[derive(Debug, Clone, Default)]
 pub struct LLHDEgglogFacts(EgglogCommandList);

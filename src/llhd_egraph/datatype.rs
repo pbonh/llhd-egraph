@@ -5,8 +5,8 @@ use llhd::ir::Opcode;
 use super::egglog_names::{LLHD_UNIT_FIELD, LLHD_VALUE_DATATYPE, LLHD_VALUE_REF_FIELD};
 use super::inst::opcode::opcode_symbol;
 use super::{inst, unit};
-use crate::egraph::sorts::EgglogSorts;
-use crate::egraph::EgglogCommandList;
+use egglog_program::egraph::sorts::EgglogSorts;
+use egglog_program::egraph::EgglogCommandList;
 
 #[derive(Debug, Clone)]
 pub struct LLHDEgglogSorts(EgglogCommandList);

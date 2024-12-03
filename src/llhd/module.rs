@@ -51,6 +51,12 @@ impl From<Module> for LLHDModule {
     }
 }
 
+impl From<LLHDModule> for Module {
+    fn from(llhd_module: LLHDModule) -> Self {
+        llhd_module.0
+    }
+}
+
 impl fmt::Debug for LLHDModule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.dump().fmt(f)
