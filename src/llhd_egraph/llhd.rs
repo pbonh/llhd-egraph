@@ -10,9 +10,7 @@ use super::schedules::LLHDEgglogSchedules;
 use super::unit::LLHDEgglogFacts;
 use crate::llhd::module::LLHDModule;
 use crate::llhd_egraph::unit::{expr_to_unit_data, expr_to_unit_info, unit_symbol};
-use egglog_program::egraph::rules::EgglogRules;
-use egglog_program::egraph::schedule::EgglogSchedules;
-use egglog_program::egraph::{EgglogProgram, EgglogProgramBuilder, EgglogSymbols, InitState};
+use egglog_program::*;
 
 #[derive(Debug, Clone, Default, TypedBuilder)]
 pub struct LLHDEgglogProgram {

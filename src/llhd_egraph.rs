@@ -20,9 +20,7 @@ mod tests {
     use crate::llhd_egraph::rules::LLHDEgglogRules;
     use crate::llhd_egraph::schedules::LLHDEgglogSchedules;
     use crate::llhd_egraph::unit::LLHDEgglogFacts;
-    use egglog_program::egraph::schedule::EgglogSchedules;
-    use egglog_program::egraph::EgglogCommandList;
-    use egglog_program::egraph::*;
+    use egglog_program::*;
 
     use super::llhd::LLHDEgglogProgram;
 

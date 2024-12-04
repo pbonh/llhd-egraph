@@ -18,8 +18,7 @@ use crate::llhd_egraph::datatype::unit_root_variant_symbol;
 use crate::llhd_egraph::egglog_names::*;
 use crate::llhd_egraph::inst::*;
 use egglog_program::egraph::egglog_names::*;
-use egglog_program::egraph::facts::EgglogFacts;
-use egglog_program::egraph::EgglogCommandList;
+use egglog_program::*;
 
 #[derive(Debug, Clone, Default)]
 pub struct LLHDEgglogFacts(EgglogCommandList);

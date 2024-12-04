@@ -8,7 +8,7 @@ use llhd::{IntValue, TimeValue, Type};
 use crate::llhd_egraph::datatype::{value_ref_variant, variant};
 use crate::llhd_egraph::egglog_names::*;
 use egglog_program::egraph::egglog_names::{EGGLOG_I64_SORT, EGGLOG_STRING_SORT};
-use egglog_program::egraph::EgglogCommandList;
+use egglog_program::*;
 
 pub(in crate::llhd_egraph) mod opcode;
 use opcode::opcode_symbol;

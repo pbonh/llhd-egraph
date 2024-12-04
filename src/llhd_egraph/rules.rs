@@ -3,8 +3,7 @@ use std::str::FromStr;
 use egglog::Error;
 
 use crate::llhd_egraph::llhd::LLHDEGraph;
-use egglog_program::egraph::rules::EgglogRules;
-use egglog_program::egraph::EgglogCommandList;
+use egglog_program::*;
 
 #[derive(Debug, Clone, Default)]
 pub struct LLHDEgglogRules(pub(in crate::llhd_egraph) EgglogCommandList);
