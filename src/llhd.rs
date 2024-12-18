@@ -33,3 +33,12 @@ pub type LLHDValueRef = (UnitId, Inst, Value);
 
 /// Generic LLHD Value Identifier
 pub type LLHDIndex = (UnitId, Value, Option<Inst>, Option<Value>);
+
+/// LLHD Scope
+pub enum LLHDScope {
+    Module,
+    Unit(UnitId),
+    ValueDef(UnitId, Value),
+    Inst(UnitId, Value, Inst),
+    ValueRef(UnitId, Value, Inst, Value),
+}
