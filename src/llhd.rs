@@ -35,6 +35,7 @@ pub type LLHDValueRef = (UnitId, Inst, Value);
 pub type LLHDIndex = (UnitId, Value, Option<Inst>, Option<Value>);
 
 /// LLHD Scope
+#[derive(Debug, Clone)]
 pub enum LLHDScope {
     Module,
     Unit(UnitId),
