@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug)]
 pub struct LLHDUtils;
 
@@ -35,7 +37,7 @@ pub type LLHDValueRef = (UnitId, Inst, Value);
 pub type LLHDIndex = (UnitId, Value, Option<Inst>, Option<Value>);
 
 /// LLHD Scope
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LLHDScope {
     Module,
     Unit(UnitId),
