@@ -191,7 +191,8 @@ impl From<EgglogProgram> for LLHDModule {
         let unit_symbols = program.bindings().to_owned();
         let mut module = Self::default();
         let mut egraph = EGraph::default();
-        if let Err(err_msg) = egraph.run_program(program.into()) {
+        if let Err(err_msg) = egraph.run_program(program.clone().into()) {
+            println!("{:?}", program.facts());
             panic!("Failure to run EgglogProgram. Err: {:?}", err_msg);
         }
         for unit_symbol in unit_symbols.into_iter() {
@@ -356,7 +357,7 @@ mod tests {
         assert_eq!(0, egglog_program.rules()[0].len());
         assert_eq!(0, egglog_program.schedules()[0].len());
         assert_eq!(1, egglog_program.bindings().len());
-
+        println!("{:?}", egglog_program.sorts());
         let round_trip_test_module = LLHDModule::from(egglog_program);
         let unit_ids = round_trip_test_module
             .units()
@@ -372,4 +373,16 @@ mod tests {
             panic!("UnitName is not Global type.");
         }
     }
+
+    // ({"unit_test_entity"}, EgglogFacts([Action(Let(In 1:1-1: , "unit_test_entity",
+    // Call(In 1:1-1: , "LLHDUnit", [
+    // Lit(In 1:1-1: , Int(0)),
+    // Call(In 1:1-1: , "Entity", []),
+    // Lit(In 1:1-1: , String("@test_entity")),
+    // Call(In 1:1-1: , "vec-of", [Call(In 1:1-1: , "Value", [Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Lit(In 1:1-1: , Int(0))]),
+    // Call(In 1:1-1: , "Value", [Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Lit(In 1:1-1: , Int(1))]),
+    // Call(In 1:1-1: , "Value", [Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Lit(In 1:1-1: , Int(2))])]),
+    // Call(In 1:1-1: , "vec-of", [Call(In 1:1-1: , "Value", [Call(In 1:1-1: , "Signal", [Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))])]), Lit(In 1:1-1: , Int(3))])]),
+    // Call(In 1:1-1: , "Drv", [Lit(In 1:1-1: , Int(5)), Call(In 1:1-1: , "Void", []), Call(In 1:1-1: , "ValueRef", [Call(In 1:1-1: , "Value", [Call(In 1:1-1: , "Signal", [Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))])]), Lit(In 1:1-1: , Int(3))])]), Call(In 1:1-1: , "Or", [Lit(In 1:1-1: , Int(4)), Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Call(In 1:1-1:, "And", [Lit(In 1:1-1: , Int(2)), Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Call(In 1:1-1: , "ValueRef", [Call(In 1:1-1: , "Value", [Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Lit(In 1:1-1: , Int(0))])]), Call(In 1:1-1: , "ValueRef", [Call(In 1:1-1: , "Value", [Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Lit(In 1:1-1: , Int(1))])])]), Call(In 1:1-1: , "And", [Lit(In 1:1-1: , Int(3)), Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Call(In 1:1-1: , "ValueRef", [Call(In 1:1-1: , "Value", [Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Lit(In 1:1-1: , Int(2))])]), Call(In 1:1-1: , "ValueRef", [Call(In 1:1-1: , "Value", [Call(In 1:1-1: , "Id", [Lit(In 1:1-1: , Int(1))]), Lit(In 1:1-1: , Int(1))])])])]), Call(In 1:1-1: , "ConstTime", [Lit(In 1:1-1: , Int(1)), Call(In 1:1-1: , "Time", []), Lit(In 1:1-1: , String("0s 1e"))])])
+    // ])))]))
 }

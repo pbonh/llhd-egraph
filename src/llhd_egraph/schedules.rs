@@ -1,19 +1,15 @@
 use std::str::FromStr;
 
-use egglog::Error;
-
-use crate::llhd_egraph::llhd::LLHDEGraph;
 use egglog_program::*;
 
 #[derive(Debug, Clone, Default)]
 pub struct LLHDEgglogSchedules(pub(in crate::llhd_egraph) EgglogCommandList);
 
 impl FromStr for LLHDEgglogSchedules {
-    type Err = Error;
+    type Err = egglog::ast::ParseError;
 
     fn from_str(schedule_str: &str) -> Result<Self, Self::Err> {
-        let llhd_egraph = LLHDEGraph::default();
-        match (*llhd_egraph).parse_program(None, schedule_str) {
+        match egglog::ast::parse_program(None, schedule_str) {
             Ok(schedule_cmds) => Ok(Self(schedule_cmds)),
             Err(err_msgs) => Err(err_msgs),
         }
@@ -37,6 +33,7 @@ impl From<LLHDEgglogSchedules> for EgglogSchedules {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llhd_egraph::llhd::LLHDEGraph;
 
     #[test]
     fn create_llhd_schedules_from_str() {

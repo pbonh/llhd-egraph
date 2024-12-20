@@ -2,8 +2,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use egglog::ast::{
-    Action, Command, Expr, FunctionDecl, GenericActions, GenericCommand, GenericExpr, Literal,
-    Schema, Symbol, Variant, DUMMY_SPAN,
+    Action, Command, Expr, GenericCommand, GenericExpr, Literal, Schema, Symbol, Variant,
+    DUMMY_SPAN,
 };
 use egglog::sort::{I64Sort, Sort, StringSort};
 use itertools::Itertools;
@@ -284,7 +284,7 @@ pub(crate) fn expr_to_unit_info(unit_expr: Expr) -> (UnitKind, UnitName, Signatu
                 ),
                 default_unit_info.2,
             ),
-            Literal::F64(_fid) => default_unit_info,
+            Literal::Float(_fid) => default_unit_info,
             Literal::String(uname) => (
                 default_unit_info.0,
                 UnitName::Global(uname.to_string()),
@@ -417,147 +417,107 @@ fn vec_ty_sort() -> Command {
 }
 
 fn type_functions() -> EgglogCommandList {
-    let void_function = GenericCommand::Function(FunctionDecl {
+    let void_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_VOID_FIELD),
         schema: Schema {
             input: vec![],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
-    let time_function = GenericCommand::Function(FunctionDecl {
+    };
+    let time_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_TIME_FIELD),
         schema: Schema {
             input: vec![],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
-    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
-    let int_function = GenericCommand::Function(FunctionDecl {
+    };
+    let i64_sort = I64Sort;
+    let int_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_INT_FIELD),
         schema: Schema {
             input: vec![i64_sort.name()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
-    let enum_function = GenericCommand::Function(FunctionDecl {
+    };
+    let enum_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_ENUM_FIELD),
         schema: Schema {
             input: vec![i64_sort.name()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
-    let pointer_function = GenericCommand::Function(FunctionDecl {
+    };
+    let pointer_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_POINTER_FIELD),
         schema: Schema {
             input: vec![LLHD_TYPE_DATATYPE.into()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
-    let signal_function = GenericCommand::Function(FunctionDecl {
+    };
+    let signal_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_SIGNAL_FIELD),
         schema: Schema {
             input: vec![LLHD_TYPE_DATATYPE.into()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
-    let array_function = GenericCommand::Function(FunctionDecl {
+    };
+    let array_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_ARRAY_FIELD),
         schema: Schema {
             input: vec![i64_sort.name(), LLHD_TYPE_DATATYPE.into()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
-    let struct_function = GenericCommand::Function(FunctionDecl {
+    };
+    let struct_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_STRUCT_FIELD),
         schema: Schema {
             input: vec![LLHD_VEC_TYPE_DATATYPE.into()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
-    let func_function = GenericCommand::Function(FunctionDecl {
+    };
+    let func_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_FUNC_FIELD),
         schema: Schema {
             input: vec![LLHD_VEC_TYPE_DATATYPE.into(), LLHD_TYPE_DATATYPE.into()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
-    let entity_function = GenericCommand::Function(FunctionDecl {
+    };
+    let entity_function = GenericCommand::Constructor {
         name: Symbol::new(LLHD_TYPE_ENTITY_FIELD),
         schema: Schema {
             input: vec![LLHD_VEC_TYPE_DATATYPE.into(), LLHD_VEC_TYPE_DATATYPE.into()],
             output: Symbol::new(LLHD_TYPE_DATATYPE),
         },
-        default: None,
-        merge: None,
-        merge_action: GenericActions::default(),
+        span: DUMMY_SPAN.clone(),
         cost: None,
         unextractable: false,
-        ignore_viz: false,
-        span: DUMMY_SPAN.clone(),
-    });
+    };
     vec![
         void_function,
         time_function,
@@ -600,7 +560,7 @@ fn unit_kind_sort() -> Command {
 }
 
 fn value() -> Command {
-    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
+    let i64_sort = I64Sort;
     let ty_datatype = Symbol::new(LLHD_TYPE_DATATYPE);
     let value_variant = Variant {
         span: DUMMY_SPAN.clone(),
@@ -617,7 +577,7 @@ fn value() -> Command {
 }
 
 fn int_value() -> Command {
-    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
+    let i64_sort = I64Sort;
     let int_value_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_INT_VALUE_FIELD),
@@ -633,7 +593,7 @@ fn int_value() -> Command {
 }
 
 fn time_value() -> Command {
-    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
+    let i64_sort = I64Sort;
     let time_value_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_TIME_VALUE_FIELD),
@@ -713,7 +673,7 @@ fn vec_regmode_sort() -> Command {
 }
 
 fn block() -> Command {
-    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
+    let i64_sort = I64Sort;
     let block_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_BLOCK_FIELD),
@@ -731,8 +691,8 @@ fn block() -> Command {
 fn vec_block() -> Command {
     let vec_sort_symbol = Symbol::new(LLHD_VEC_BLOCK_DATATYPE);
     let symbol_vec = Symbol::new(EGGLOG_VEC_SORT);
-    let vec_block_datatype = I64Sort::new(LLHD_BLOCK_DATATYPE.into());
-    let vec_block_expr = Expr::Var(DUMMY_SPAN.clone(), vec_block_datatype.name());
+    let vec_block_datatype = Symbol::new(LLHD_BLOCK_DATATYPE);
+    let vec_block_expr = Expr::Var(DUMMY_SPAN.clone(), vec_block_datatype);
     Command::Sort(
         DUMMY_SPAN.clone(),
         vec_sort_symbol,
@@ -741,7 +701,7 @@ fn vec_block() -> Command {
 }
 
 fn ext_unit() -> Command {
-    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
+    let i64_sort = I64Sort;
     let ext_unit_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_EXT_UNIT_FIELD),
@@ -757,8 +717,8 @@ fn ext_unit() -> Command {
 }
 
 fn unit() -> Command {
-    let i64_sort = I64Sort::new(EGGLOG_I64_SORT.into());
-    let string_sort = StringSort::new(EGGLOG_STRING_SORT.into());
+    let i64_sort = I64Sort;
+    let string_sort = StringSort;
     let unit_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_UNIT_FIELD),
@@ -794,7 +754,7 @@ fn unit() -> Command {
 
 pub(in crate::llhd_egraph) fn unit_types() -> EgglogCommandList {
     let mut llhd_types = vec![type_sort(), vec_ty_sort()];
-    llhd_types.extend(type_functions().into_iter());
+    llhd_types.extend(type_functions());
     llhd_types.extend([
         unit_kind_sort(),
         value(),
@@ -884,13 +844,13 @@ mod tests {
                 0
                 (Entity)
                 \"%0\"
-                (vec-of (Value (Signal (Int 1)) 0) (Value (Signal (Int 1)) 1) (Value (Signal (Int 1)) 2))
-                (vec-of (Value (Signal (Int 32)) 3))
-                (Add 5 (Int 1)
-                    (Add 3 (Int 1)
-                        (ConstInt 1 (Int 1) \"i1 0\")
-                        (ConstInt 2 (Int 1) \"i1 1\"))
-                    (Prb 4 (Int 1) (ValueRef (Value (Signal (Int 1)) 2))))))
+                (vec-of (Value (Signal (IntTy 1)) 0) (Value (Signal (IntTy 1)) 1) (Value (Signal (IntTy 1)) 2))
+                (vec-of (Value (Signal (IntTy 32)) 3))
+                (Add 5 (IntTy 1)
+                    (Add 3 (IntTy 1)
+                        (ConstInt 1 (IntTy 1) \"i1 0\")
+                        (ConstInt 2 (IntTy 1) \"i1 1\"))
+                    (Prb 4 (IntTy 1) (ValueRef (Value (Signal (IntTy 1)) 2))))))
         "});
         assert_eq!(
             expected_str,
@@ -933,17 +893,17 @@ mod tests {
                 0
                 (Entity)
                 \"@test_entity\"
-                (vec-of (Value (Int 1) 0) (Value (Int 1) 1) (Value (Int 1) 2) (Value (Int 1) 3))
-                (vec-of (Value (Signal (Int 1)) 4))
+                (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2) (Value (IntTy 1) 3))
+                (vec-of (Value (Signal (IntTy 1)) 4))
                 (Drv 5 (Void)
-                    (ValueRef (Value (Signal (Int 1)) 4))
-                    (Or 4 (Int 1)
-                        (And 2 (Int 1)
-                            (ValueRef (Value (Int 1) 0))
-                            (ValueRef (Value (Int 1) 1)))
-                        (And 3 (Int 1)
-                            (ValueRef (Value (Int 1) 2))
-                            (ValueRef (Value (Int 1) 3))))
+                    (ValueRef (Value (Signal (IntTy 1)) 4))
+                    (Or 4 (IntTy 1)
+                        (And 2 (IntTy 1)
+                            (ValueRef (Value (IntTy 1) 0))
+                            (ValueRef (Value (IntTy 1) 1)))
+                        (And 3 (IntTy 1)
+                            (ValueRef (Value (IntTy 1) 2))
+                            (ValueRef (Value (IntTy 1) 3))))
                     (ConstTime 1 (Time) \"0s 1e\"))))
         "});
         assert_eq!(
@@ -952,6 +912,34 @@ mod tests {
             "Generated LLHD Egglog expression doesn't match expected value."
         );
     }
+
+    // #[test]
+    // fn llhd_egglog_unit_from_expr() {
+    //     let unit_str = utilities::trim_expr_whitespace(indoc::indoc! {"
+    //         (let unit_test_entity (LLHDUnit
+    //             0
+    //             (Entity)
+    //             \"@test_entity\"
+    //             (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2) (Value (IntTy 1) 3))
+    //             (vec-of (Value (Signal (IntTy 1)) 4))
+    //             (Drv 5 (Void)
+    //                 (ValueRef (Value (Signal (IntTy 1)) 4))
+    //                 (Or 4 (IntTy 1)
+    //                     (And 2 (IntTy 1)
+    //                         (ValueRef (Value (IntTy 1) 0))
+    //                         (ValueRef (Value (IntTy 1) 1)))
+    //                     (And 3 (IntTy 1)
+    //                         (ValueRef (Value (IntTy 1) 2))
+    //                         (ValueRef (Value (IntTy 1) 3))))
+    //                 (ConstTime 1 (Time) \"0s 1e\"))))
+    //     "});
+    //         expr_to_unit_data(
+    //             extracted_expr,
+    //             unit_kind_extract,
+    //             unit_name_extract,
+    //             unit_sig_extract,
+    //         )
+    // }
 
     #[test]
     fn llhd_rewrite_egglog_program() {
@@ -1049,15 +1037,15 @@ mod tests {
             );
             let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
                 (LLHDUnit 0 (Entity) \"@test_entity\"
-                    (vec-of (Value (Int 1) 0) (Value (Int 1) 1) (Value (Int 1) 2))
-                    (vec-of (Value (Signal (Int 1)) 3))
+                    (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2))
+                    (vec-of (Value (Signal (IntTy 1)) 3))
                     (Drv 5 (Void)
-                        (ValueRef (Value (Signal (Int 1)) 3))
-                        (And 4 (Int 1)
-                            (Or 2 (Int 1)
-                                (ValueRef (Value (Int 1) 0))
-                                (ValueRef (Value (Int 1) 2)))
-                            (ValueRef (Value (Int 1) 1)))
+                        (ValueRef (Value (Signal (IntTy 1)) 3))
+                        (And 4 (IntTy 1)
+                            (Or 2 (IntTy 1)
+                                (ValueRef (Value (IntTy 1) 0))
+                                (ValueRef (Value (IntTy 1) 2)))
+                            (ValueRef (Value (IntTy 1) 1)))
                         (ConstTime 1 (Time) \"0s 1e\")))
             "});
             assert_eq!(extracted_expr.to_string(), expected_str);

@@ -761,7 +761,7 @@ mod tests {
         let unit_sig = unit.sig();
         let value1_ty = unit_sig.arg_type(Arg::new(1));
         let value1_expr = value_ref_expr(value1_ty, value1);
-        let expected_str = "(ValueRef (Value (Signal (Int 1)) 1))";
+        let expected_str = "(ValueRef (Value (Signal (IntTy 1)) 1))";
         assert_eq!(
             expected_str,
             value1_expr.to_string(),
@@ -777,7 +777,7 @@ mod tests {
         let unit_sig = unit.sig();
         let value1_ty = unit_sig.arg_type(Arg::new(1));
         let value1_expr = value_def_expr(value1_ty, value1);
-        let expected_str = "(Value (Signal (Int 1)) 1)";
+        let expected_str = "(Value (Signal (IntTy 1)) 1)";
         assert_eq!(
             expected_str,
             value1_expr.to_string(),
@@ -798,11 +798,11 @@ mod tests {
             if let ValueData::Inst { ty, .. } = add2_value_data {
                 let add2_expr = inst_expr(&unit, add2_inst.1, ty.clone(), add2_inst_data);
                 let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
-                    (Add 5 (Int 1)
-                        (Add 3 (Int 1)
-                            (ConstInt 1 (Int 1) \"i1 0\")
-                            (ConstInt 2 (Int 1) \"i1 1\"))
-                        (Prb 4 (Int 1) (ValueRef (Value (Signal (Int 1)) 2))))
+                    (Add 5 (IntTy 1)
+                        (Add 3 (IntTy 1)
+                            (ConstInt 1 (IntTy 1) \"i1 0\")
+                            (ConstInt 2 (IntTy 1) \"i1 1\"))
+                        (Prb 4 (IntTy 1) (ValueRef (Value (Signal (IntTy 1)) 2))))
                 "});
                 assert_eq!(
                     expected_str,
