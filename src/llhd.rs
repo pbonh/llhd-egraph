@@ -37,8 +37,9 @@ pub type LLHDValueRef = (UnitId, Inst, Value);
 pub type LLHDIndex = (UnitId, Value, Option<Inst>, Option<Value>);
 
 /// LLHD Scope
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub enum LLHDScope {
+    #[default]
     Module,
     Unit(UnitId),
     ValueDef(UnitId, Value),
