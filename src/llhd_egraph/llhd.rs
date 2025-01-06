@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use egglog::ast::{GenericCommand, GenericExpr, DUMMY_SPAN};
+use egglog::ast::{GenericCommand, GenericExpr};
 use egglog::{EGraph, Error, TermDag};
 use typed_builder::TypedBuilder;
 
@@ -210,7 +210,7 @@ impl From<EgglogProgram> for LLHDModule {
                 .unwrap();
             let (_unit_cost, unit_term) =
                 egraph.extract(unit_symbol_value, &mut extracted_termdag, &unit_sort);
-            let extracted_expr = extracted_termdag.term_to_expr(&unit_term);
+            let extracted_expr = extracted_termdag.term_to_expr(&unit_term, DUMMY_SPAN.clone());
             let (unit_kind_extract, unit_name_extract, unit_sig_extract) =
                 expr_to_unit_info(extracted_expr.clone());
             let unit_data = expr_to_unit_data(

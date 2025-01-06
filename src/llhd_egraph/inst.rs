@@ -1,4 +1,4 @@
-use egglog::ast::{Command, Expr, GenericExpr, Literal, Symbol, Variant, DUMMY_SPAN};
+use egglog::ast::{Command, Expr, GenericExpr, Literal, Symbol, Variant};
 use lazy_static::lazy_static;
 use llhd::ir::prelude::*;
 use llhd::ir::{InstData, ValueData};

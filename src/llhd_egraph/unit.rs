@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use egglog::ast::{
     Action, Command, Expr, GenericCommand, GenericExpr, Literal, Schema, Symbol, Variant,
-    DUMMY_SPAN,
 };
 use egglog::sort::{I64Sort, Sort, StringSort};
 use itertools::Itertools;
@@ -842,7 +841,7 @@ mod tests {
         let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
             (let unit_0 (LLHDUnit
                 0
-                (Entity)
+                (Entity )
                 \"%0\"
                 (vec-of (Value (Signal (IntTy 1)) 0) (Value (Signal (IntTy 1)) 1) (Value (Signal (IntTy 1)) 2))
                 (vec-of (Value (Signal (IntTy 32)) 3))
@@ -891,11 +890,11 @@ mod tests {
         let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
             (let unit_test_entity (LLHDUnit
                 0
-                (Entity)
+                (Entity )
                 \"@test_entity\"
                 (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2) (Value (IntTy 1) 3))
                 (vec-of (Value (Signal (IntTy 1)) 4))
-                (Drv 5 (Void)
+                (Drv 5 (Void )
                     (ValueRef (Value (Signal (IntTy 1)) 4))
                     (Or 4 (IntTy 1)
                         (And 2 (IntTy 1)
@@ -904,7 +903,7 @@ mod tests {
                         (And 3 (IntTy 1)
                             (ValueRef (Value (IntTy 1) 2))
                             (ValueRef (Value (IntTy 1) 3))))
-                    (ConstTime 1 (Time) \"0s 1e\"))))
+                    (ConstTime 1 (Time ) \"0s 1e\"))))
         "});
         assert_eq!(
             expected_str,
@@ -1030,25 +1029,25 @@ mod tests {
                 .unwrap();
             let (_unit_cost, unit_term) =
                 egraph.extract(test_unit_symbol_value, &mut extracted_termdag, &unit_sort);
-            let extracted_expr = extracted_termdag.term_to_expr(&unit_term);
+            let extracted_expr = extracted_termdag.term_to_expr(&unit_term, DUMMY_SPAN.clone());
             assert!(
                 matches!(extracted_expr, GenericExpr::Call { .. }),
                 "Top level expression should be a call."
             );
             let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
-                (LLHDUnit 0 (Entity) \"@test_entity\"
+                (LLHDUnit 0 (Entity ) \"@test_entity\"
                     (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2))
                     (vec-of (Value (Signal (IntTy 1)) 3))
-                    (Drv 5 (Void)
+                    (Drv 5 (Void )
                         (ValueRef (Value (Signal (IntTy 1)) 3))
                         (And 4 (IntTy 1)
                             (Or 2 (IntTy 1)
                                 (ValueRef (Value (IntTy 1) 0))
                                 (ValueRef (Value (IntTy 1) 2)))
                             (ValueRef (Value (IntTy 1) 1)))
-                        (ConstTime 1 (Time) \"0s 1e\")))
+                        (ConstTime 1 (Time ) \"0s 1e\")))
             "});
-            assert_eq!(extracted_expr.to_string(), expected_str);
+            assert_eq!(expected_str, extracted_expr.to_string());
             let (unit_kind_extract, unit_name_extract, unit_sig_extract) =
                 expr_to_unit_info(extracted_expr.clone());
             assert!(matches!(unit_kind_extract, UnitKind::Entity));

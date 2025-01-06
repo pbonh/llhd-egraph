@@ -1,4 +1,4 @@
-use egglog::ast::{Symbol, Variant, DUMMY_SPAN};
+use egglog::ast::{Symbol, Variant};
 use itertools::Itertools;
 use llhd::ir::Opcode;
 
