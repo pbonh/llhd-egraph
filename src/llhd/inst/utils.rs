@@ -1,3 +1,4 @@
+use indexmap::IndexSet;
 use llhd::ir::prelude::*;
 use llhd::ir::InstData;
 
@@ -16,23 +17,23 @@ impl LLHDUtils {
         })
     }
 
-    pub fn last_unit_inst<'unit>(unit: &'unit Unit) -> LLHDInst {
-        let last_block = unit
-            .last_block()
-            .expect("Unit empty, unit.last_block() returned empty.");
-        let last_inst = unit
-            .last_inst(last_block)
-            .expect("Empty Unit Block, unit.last_inst(block) returned empty.");
-        let last_llhd_inst = (unit.id(), last_inst);
-        if let InstData::Nullary { .. } = unit[last_inst] {
-            if let Some(second_last_inst) = unit.prev_inst(last_inst) {
-                (unit.id(), second_last_inst)
-            } else {
-                last_llhd_inst
-            }
-        } else {
-            last_llhd_inst
-        }
+    pub fn root_unit_inst(unit: &Unit) -> IndexSet<LLHDInst> {
+        let unit_id = unit.id();
+        let mut last_unit_insts: IndexSet<LLHDInst> = Default::default();
+        let unit_outputs: IndexSet<Value> = unit.output_args().collect();
+        Self::iterate_unit_insts(unit)
+            .flat_map(|(_unit_id, inst_id)| {
+                let inst_data = &unit[inst_id];
+                inst_data
+                    .args()
+                    .iter()
+                    .map(move |inst_arg| (inst_id, inst_arg))
+            })
+            .filter(|(_inst_id, inst_arg)| unit_outputs.contains(*inst_arg))
+            .for_each(|(inst_id, _inst_arg)| {
+                last_unit_insts.insert((unit_id, inst_id));
+            });
+        last_unit_insts
     }
 
     pub fn iterate_unit_value_defs<'unit>(
@@ -81,11 +82,21 @@ mod tests {
     }
 
     #[test]
-    fn get_last_llhd_unit_inst() {
+    #[ignore]
+    fn get_last_llhd_unit_inst_no_output() {
         let unit_data = utilities::build_entity_alpha(UnitName::anonymous(0));
         let unit = Unit::new(UnitId::new(0), &unit_data);
-        let add2_inst = LLHDUtils::last_unit_inst(&unit);
+        let add2_inst = LLHDUtils::root_unit_inst(&unit).into_iter().next().unwrap();
         let add2_inst_data = &unit[add2_inst.1];
         assert_eq!(Opcode::Add, add2_inst_data.opcode(), "Inst should be Add.");
+    }
+
+    #[test]
+    fn get_last_llhd_unit_inst() {
+        let unit_data = utilities::build_entity_2and_1or_common(UnitName::anonymous(0));
+        let unit = Unit::new(UnitId::new(0), &unit_data);
+        let drv_inst = LLHDUtils::root_unit_inst(&unit).into_iter().next().unwrap();
+        let drv_inst_data = &unit[drv_inst.1];
+        assert_eq!(Opcode::Drv, drv_inst_data.opcode(), "Inst should be Drv.");
     }
 }

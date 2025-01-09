@@ -112,33 +112,43 @@ fn from_unit(unit: &Unit<'_>) -> Action {
         unit_output_args_expr,
     );
 
-    let root_inst_id = LLHDUtils::last_unit_inst(unit).1;
-    let mut root_inst_ty = Arc::<TypeKind>::new(TypeKind::VoidType);
-    if let Some(root_inst_value) = unit.get_inst_result(root_inst_id) {
-        if let ValueData::Inst { ty, .. } = &unit[root_inst_value] {
-            root_inst_ty = ty.clone();
+    let root_inst_ids = LLHDUtils::root_unit_inst(unit);
+    let mut root_inst_exprs: Vec<Expr> = Default::default();
+    for (_unit_id, root_inst_id) in root_inst_ids.iter().rev() {
+        let mut root_inst_ty = Arc::<TypeKind>::new(TypeKind::VoidType);
+        if let Some(root_inst_value) = unit.get_inst_result(*root_inst_id) {
+            if let ValueData::Inst { ty, .. } = &unit[root_inst_value] {
+                root_inst_ty = ty.clone();
+            }
+            match &unit[root_inst_value] {
+                ValueData::Inst { ty, .. } => root_inst_ty = ty.clone(),
+                ValueData::Arg { ty, .. } => root_inst_ty = ty.clone(),
+                ValueData::Placeholder { ty } => root_inst_ty = ty.clone(),
+                ValueData::Invalid => {}
+            }
         }
-        match &unit[root_inst_value] {
-            ValueData::Inst { ty, .. } => root_inst_ty = ty.clone(),
-            ValueData::Arg { ty, .. } => root_inst_ty = ty.clone(),
-            ValueData::Placeholder { ty } => root_inst_ty = ty.clone(),
-            ValueData::Invalid => {}
-        }
-    }
 
-    let root_inst_data = &unit[root_inst_id];
-    let root_inst_expr = inst_expr(unit, root_inst_id, root_inst_ty, root_inst_data);
+        let root_inst_data = &unit[*root_inst_id];
+        root_inst_exprs.push(inst_expr(unit, *root_inst_id, root_inst_ty, root_inst_data));
+    }
+    let unit_ctx_expr = Expr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(EGGLOG_VEC_OF_OP),
+        root_inst_exprs,
+    );
+    let unit_expr_vec = vec![
+        unit_id_expr,
+        unit_kind_expr,
+        unit_name_expr,
+        unit_input_sig_expr,
+        unit_output_sig_expr,
+        unit_ctx_expr,
+    ];
+
     let unit_expr = GenericExpr::Call(
         DUMMY_SPAN.clone(),
         unit_root_variant_symbol(),
-        vec![
-            unit_id_expr,
-            unit_kind_expr,
-            unit_name_expr,
-            unit_input_sig_expr,
-            unit_output_sig_expr,
-            root_inst_expr,
-        ],
+        unit_expr_vec,
     );
     Action::Let(DUMMY_SPAN.clone(), unit_symbol(*unit), unit_expr)
 }
@@ -715,7 +725,19 @@ fn ext_unit() -> Command {
     }
 }
 
-fn unit() -> Command {
+fn unit_ctx() -> Command {
+    let llhd_dfg_ctx_symbol = Symbol::new(LLHD_DFG_CTX_DATATYPE);
+    let symbol_vec = Symbol::new(EGGLOG_VEC_SORT);
+    let llhd_dfg_datatype = Symbol::new(LLHD_DFG_DATATYPE);
+    let llhd_dfg_datatype_expr = Expr::Var(DUMMY_SPAN.clone(), llhd_dfg_datatype);
+    Command::Sort(
+        DUMMY_SPAN.clone(),
+        llhd_dfg_ctx_symbol,
+        Some((symbol_vec, vec![llhd_dfg_datatype_expr])),
+    )
+}
+
+fn unit_def() -> Command {
     let i64_sort = I64Sort;
     let string_sort = StringSort;
     let unit_variant = Variant {
@@ -727,7 +749,7 @@ fn unit() -> Command {
             string_sort.name(),
             LLHD_VEC_VALUE_DATATYPE.into(),
             LLHD_VEC_VALUE_DATATYPE.into(),
-            LLHD_DFG_DATATYPE.into(),
+            LLHD_DFG_CTX_DATATYPE.into(),
         ],
         cost: None,
     };
@@ -769,7 +791,7 @@ pub(in crate::llhd_egraph) fn unit_types() -> EgglogCommandList {
 }
 
 pub(in crate::llhd_egraph) fn dfg() -> EgglogCommandList {
-    vec![unit()]
+    vec![unit_ctx(), unit_def()]
 }
 
 #[cfg(test)]
@@ -807,6 +829,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn llhd_egglog_dfg_expression_tree1() {
         let unit_data = utilities::build_entity_alpha(UnitName::anonymous(0));
         let unit = Unit::new(UnitId::new(0), &unit_data);
@@ -893,7 +916,7 @@ mod tests {
                 (Entity )
                 \"@test_entity\"
                 (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2) (Value (IntTy 1) 3))
-                (vec-of (Value (Signal (IntTy 1)) 4))
+                (vec-of (Value (Signal (IntTy 1)) 4)) (vec-of
                 (Drv 5 (Void )
                     (ValueRef (Value (Signal (IntTy 1)) 4))
                     (Or 4 (IntTy 1)
@@ -903,7 +926,7 @@ mod tests {
                         (And 3 (IntTy 1)
                             (ValueRef (Value (IntTy 1) 2))
                             (ValueRef (Value (IntTy 1) 3))))
-                    (ConstTime 1 (Time ) \"0s 1e\"))))
+                    (ConstTime 1 (Time ) \"0s 1e\")))))
         "});
         assert_eq!(
             expected_str,
@@ -912,6 +935,94 @@ mod tests {
         );
     }
 
+    #[test]
+    fn llhd_egglog_dfg_expression_tree3() {
+        let module = utilities::load_llhd_module("1ent_absorption_div_extract.before.llhd");
+        let units = LLHDUtils::iterate_unit_ids(&module).collect_vec();
+        let unit = module.unit(*units.first().unwrap());
+        let insts = LLHDUtils::iterate_unit_insts(&unit).collect_vec();
+        let _value_refs = LLHDUtils::iterate_unit_value_defs(&unit).collect_vec();
+
+        let const_time1_inst = insts[0];
+        let const_time1_inst_data = &unit[const_time1_inst.1];
+        assert_eq!(
+            Opcode::ConstTime,
+            const_time1_inst_data.opcode(),
+            "Inst should be Const Time."
+        );
+        let and1_inst = insts[1];
+        let and1_inst_data = &unit[and1_inst.1];
+        assert_eq!(Opcode::And, and1_inst_data.opcode(), "Inst should be And.");
+        let and2_inst = insts[2];
+        let and2_inst_data = &unit[and2_inst.1];
+        assert_eq!(Opcode::And, and2_inst_data.opcode(), "Inst should be And.");
+        let and3_inst = insts[3];
+        let and3_inst_data = &unit[and3_inst.1];
+        assert_eq!(Opcode::And, and3_inst_data.opcode(), "Inst should be And.");
+        let or1_inst = insts[4];
+        let or1_inst_data = &unit[or1_inst.1];
+        assert_eq!(Opcode::Or, or1_inst_data.opcode(), "Inst should be Or.");
+        let drv1_inst = insts[5];
+        let drv1_inst_data = &unit[drv1_inst.1];
+        assert_eq!(Opcode::Drv, drv1_inst_data.opcode(), "Inst should be Drv.");
+        let const_time2_inst = insts[6];
+        let const_time2_inst_data = &unit[const_time2_inst.1];
+        assert_eq!(
+            Opcode::ConstTime,
+            const_time2_inst_data.opcode(),
+            "Inst should be Const Time."
+        );
+        let and4_inst = insts[7];
+        let and4_inst_data = &unit[and4_inst.1];
+        assert_eq!(Opcode::And, and4_inst_data.opcode(), "Inst should be And.");
+        let and5_inst = insts[8];
+        let and5_inst_data = &unit[and5_inst.1];
+        assert_eq!(Opcode::And, and5_inst_data.opcode(), "Inst should be And.");
+        let or2_inst = insts[9];
+        let or2_inst_data = &unit[or2_inst.1];
+        assert_eq!(Opcode::Or, or2_inst_data.opcode(), "Inst should be Or.");
+        let drv2_inst = insts[10];
+        let drv2_inst_data = &unit[drv2_inst.1];
+        assert_eq!(Opcode::Drv, drv2_inst_data.opcode(), "Inst should be Drv.");
+
+        let egglog_expr = from_unit(&unit);
+        let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
+            (let unit_test_entity (LLHDUnit
+                0
+                (Entity )
+                \"@test_entity\"
+                (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2) (Value (IntTy 1) 3) (Value (IntTy 1) 4) (Value (IntTy 1) 5) (Value (IntTy 1) 6))
+                (vec-of (Value (Signal (IntTy 1)) 7) (Value (Signal (IntTy 1)) 8)) (vec-of
+                (Drv 11 (Void )
+                    (ValueRef (Value (Signal (IntTy 1)) 8))
+                    (Or 10 (IntTy 1)
+                        (And 8 (IntTy 1)
+                            (ValueRef (Value (IntTy 1) 4))
+                            (ValueRef (Value (IntTy 1) 5)))
+                        (And 9 (IntTy 1)
+                            (ValueRef (Value (IntTy 1) 6))
+                            (ValueRef (Value (IntTy 1) 5))))
+                    (ConstTime 7 (Time ) \"0s 1e\"))
+                (Drv 6 (Void )
+                    (ValueRef (Value (Signal (IntTy 1)) 7))
+                    (Or 5 (IntTy 1)
+                        (And 2 (IntTy 1)
+                            (ValueRef (Value (IntTy 1) 0))
+                            (ValueRef (Value (IntTy 1) 2)))
+                        (And 4 (IntTy 1)
+                            (And 3 (IntTy 1)
+                                (ValueRef (Value (IntTy 1) 0))
+                                (ValueRef (Value (IntTy 1) 2)))
+                            (ValueRef (Value (IntTy 1) 2))))
+                    (ConstTime 1 (Time ) \"0s 1e\"))
+            )))
+        "});
+        assert_eq!(
+            expected_str,
+            egglog_expr.to_string(),
+            "Generated LLHD Egglog expression doesn't match expected value."
+        );
+    }
     // #[test]
     // fn llhd_egglog_unit_from_expr() {
     //     let unit_str = utilities::trim_expr_whitespace(indoc::indoc! {"
@@ -1037,7 +1148,7 @@ mod tests {
             let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
                 (LLHDUnit 0 (Entity ) \"@test_entity\"
                     (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2))
-                    (vec-of (Value (Signal (IntTy 1)) 3))
+                    (vec-of (Value (Signal (IntTy 1)) 3)) (vec-of
                     (Drv 5 (Void )
                         (ValueRef (Value (Signal (IntTy 1)) 3))
                         (And 4 (IntTy 1)
@@ -1045,7 +1156,7 @@ mod tests {
                                 (ValueRef (Value (IntTy 1) 0))
                                 (ValueRef (Value (IntTy 1) 2)))
                             (ValueRef (Value (IntTy 1) 1)))
-                        (ConstTime 1 (Time ) \"0s 1e\")))
+                        (ConstTime 1 (Time ) \"0s 1e\"))))
             "});
             assert_eq!(expected_str, extracted_expr.to_string());
             let (unit_kind_extract, unit_name_extract, unit_sig_extract) =

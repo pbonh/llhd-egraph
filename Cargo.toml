@@ -8,6 +8,7 @@ edition = "2021"
 llhd = { workspace = true }
 egglog = { workspace = true }
 egglog-program = { path = "../egglog-program" }
+indexmap = { workspace = true }
 itertools = { workspace = true }
 rayon = { workspace = true }
 typed-builder = { workspace = true }

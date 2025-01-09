@@ -40,3 +40,4 @@ pub(super) const LLHD_EXT_UNIT_FIELD: &str = "ExtUnit";
 pub(super) const LLHD_EXT_UNIT_DATATYPE: &str = "LLHDExtUnit";
 pub(super) const LLHD_DFG_DATATYPE: &str = "LLHDDFG";
 pub(super) const LLHD_CFG_DATATYPE: &str = "LLHDCFG";
+pub(super) const LLHD_DFG_CTX_DATATYPE: &str = "LLHDUnitDFGContext";
