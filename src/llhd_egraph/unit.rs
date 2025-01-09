@@ -1023,6 +1023,41 @@ mod tests {
             "Generated LLHD Egglog expression doesn't match expected value."
         );
     }
+
+    #[test]
+    fn llhd_egglog_dfg_expression_tree_dual_output() {
+        let module = utilities::load_llhd_module("dual_outputs_single_dfg.llhd");
+        let units = LLHDUtils::iterate_unit_ids(&module).collect_vec();
+        let unit = module.unit(*units.first().unwrap());
+        let egglog_expr = from_unit(&unit);
+        let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
+            (let unit_test_entity (LLHDUnit
+                0 (Entity )
+                \"@test_entity\"
+                (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1))
+                (vec-of (Value (Signal (IntTy 1)) 2) (Value (Signal (IntTy 1)) 3))
+                (vec-of
+                    (Drv 4 (Void )
+                        (ValueRef (Value (Signal (IntTy 1)) 3))
+                        (And 2 (IntTy 1)
+                            (ValueRef (Value (IntTy 1) 0))
+                            (ValueRef (Value (IntTy 1) 1)))
+                        (ConstTime 1 (Time ) \"0s 1e\"))
+                    (Drv 3 (Void )
+                        (ValueRef (Value (Signal (IntTy 1)) 2))
+                        (And 2 (IntTy 1)
+                            (ValueRef (Value (IntTy 1) 0))
+                            (ValueRef (Value (IntTy 1) 1)))
+                        (ConstTime 1 (Time ) \"0s 1e\")))
+            ))
+        "});
+        assert_eq!(
+            expected_str,
+            egglog_expr.to_string(),
+            "Generated LLHD Egglog expression doesn't match expected value."
+        );
+    }
+
     // #[test]
     // fn llhd_egglog_unit_from_expr() {
     //     let unit_str = utilities::trim_expr_whitespace(indoc::indoc! {"
