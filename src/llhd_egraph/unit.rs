@@ -184,6 +184,7 @@ fn process_expr_fifo(
     time_value_stack: &mut TimeValueStack,
     unit_builder: &mut UnitBuilder,
 ) {
+    let mut visited_symbols: EgglogSymbols = Default::default();
     for expr in expr_fifo {
         match expr {
             GenericExpr::Lit(_span, literal) => match literal {
@@ -198,9 +199,11 @@ fn process_expr_fifo(
                 }
             },
             GenericExpr::Var(_span, symbol) => {
+                visited_symbols.insert(symbol);
                 panic!("Unhandled ExprFIFO GenericExpr::Var Symbol => {:?}", symbol)
             }
             GenericExpr::Call(_, symbol, _dependencies) => {
+                // if !visited_symbols.contains(&symbol) {
                 if let Some(opcode) = opcode::get_symbol_opcode(&symbol) {
                     match opcode {
                         Opcode::Or => {
@@ -246,37 +249,30 @@ fn process_expr_fifo(
                 } else {
                     panic!("Unhandled symbol => {:?}", symbol)
                 }
+                // }
+                visited_symbols.insert(symbol);
             }
         }
     }
 }
 
 fn process_arg_expr(expr: &Expr, type_expr_fifo: &mut LLHDTypeFIFO) {
-    match expr {
-        GenericExpr::Call(_, type_symbol, type_args) => {
-            if *type_symbol == Symbol::new(LLHD_TYPE_VOID_FIELD) {
-                type_expr_fifo.push_back(llhd::void_ty());
-            } else if *type_symbol == Symbol::new(LLHD_TYPE_INT_FIELD) {
-                if let GenericExpr::Lit(_, int_literal_value) = &type_args[0] {
-                    match int_literal_value {
-                        Literal::Int(iid) => {
-                            type_expr_fifo.push_back(llhd::int_ty(
-                                usize::try_from(*iid)
-                                    .expect("Failure to convert egglog Int to usize."),
-                            ));
-                        }
-                        _ => {}
-                    }
-                };
-            } else if *type_symbol == Symbol::new(LLHD_TYPE_SIGNAL_FIELD) {
-                process_arg_expr(&type_args[0], type_expr_fifo);
-                let signal_info_expr = type_expr_fifo
-                    .pop_back()
-                    .expect("Stack empty despite still trying to process operation.");
-                type_expr_fifo.push_back(llhd::signal_ty(signal_info_expr));
-            }
+    if let GenericExpr::Call(_, type_symbol, type_args) = expr {
+        if *type_symbol == Symbol::new(LLHD_TYPE_VOID_FIELD) {
+            type_expr_fifo.push_back(llhd::void_ty());
+        } else if *type_symbol == Symbol::new(LLHD_TYPE_INT_FIELD) {
+            if let GenericExpr::Lit(_, Literal::Int(iid)) = &type_args[0] {
+                type_expr_fifo.push_back(llhd::int_ty(
+                    usize::try_from(*iid).expect("Failure to convert egglog Int to usize."),
+                ));
+            };
+        } else if *type_symbol == Symbol::new(LLHD_TYPE_SIGNAL_FIELD) {
+            process_arg_expr(&type_args[0], type_expr_fifo);
+            let signal_info_expr = type_expr_fifo
+                .pop_back()
+                .expect("Stack empty despite still trying to process operation.");
+            type_expr_fifo.push_back(llhd::signal_ty(signal_info_expr));
         }
-        _ => {}
     }
 }
 

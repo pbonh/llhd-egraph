@@ -348,7 +348,8 @@ mod tests {
     //     let _llhd_dfg_egglog_expr = egglog_expr_str!(llhd_unit_sort_egglog_resources_stream);
     // }
 
-    #[test]
+    use test_log::test;
+    #[test_log::test]
     fn egglog_program_from_llhd_module() {
         let test_module: LLHDModule = utilities::load_llhd_module("2and_1or_common.llhd").into();
 

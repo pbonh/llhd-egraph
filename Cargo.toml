@@ -20,3 +20,4 @@ serde = { workspace = true }
 [dev-dependencies]
 indoc = "2.0.4"
 utilities = { path = "../utilities" }
+test-log = "0.2.16"
