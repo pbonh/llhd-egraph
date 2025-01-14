@@ -375,14 +375,14 @@ fn llhd_rewrite_egglog_program() {
         let (unit_sort, test_unit_symbol_value) = egraph
             .eval_expr(&GenericExpr::Var(DUMMY_SPAN.clone(), test_entity_symbol))
             .unwrap();
-        let (_unit_cost, unit_term) =
-            egraph.extract(test_unit_symbol_value, &mut extracted_termdag, &unit_sort);
-        let extracted_expr = extracted_termdag.term_to_expr(&unit_term, DUMMY_SPAN.clone());
-        assert!(
-            matches!(extracted_expr, GenericExpr::Call { .. }),
-            "Top level expression should be a call."
-        );
-        let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
+        match egraph.extract(test_unit_symbol_value, &mut extracted_termdag, &unit_sort) {
+            Ok((_unit_cost, unit_term)) => {
+                let extracted_expr = extracted_termdag.term_to_expr(&unit_term, DUMMY_SPAN.clone());
+                assert!(
+                    matches!(extracted_expr, GenericExpr::Call { .. }),
+                    "Top level expression should be a call."
+                );
+                let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
                 (LLHDUnit 0 (Entity ) \"@test_entity\"
                     (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2))
                     (vec-of (Value (Signal (IntTy 1)) 3)) (vec-of
@@ -395,33 +395,36 @@ fn llhd_rewrite_egglog_program() {
                             (ValueRef (Value (IntTy 1) 1)))
                         (ConstTime 1 (Time ) \"0s 1e\"))))
             "});
-        assert_eq!(expected_str, extracted_expr.to_string());
-        let (unit_kind_extract, unit_name_extract, unit_sig_extract) =
-            expr_to_unit_info(extracted_expr.clone());
-        assert!(matches!(unit_kind_extract, UnitKind::Entity));
-        if let UnitName::Global(uname) = unit_name_extract.clone() {
-            assert_eq!(uname, "\"test_entity\"");
-        } else {
-            panic!("UnitName is of incorrect type, should be UnitName::Global");
+                assert_eq!(expected_str, extracted_expr.to_string());
+                let (unit_kind_extract, unit_name_extract, unit_sig_extract) =
+                    expr_to_unit_info(extracted_expr.clone());
+                assert!(matches!(unit_kind_extract, UnitKind::Entity));
+                if let UnitName::Global(uname) = unit_name_extract.clone() {
+                    assert_eq!(uname, "\"test_entity\"");
+                } else {
+                    panic!("UnitName is of incorrect type, should be UnitName::Global");
+                }
+                let unit_sig_extract_inputs = unit_sig_extract.inputs().collect_vec();
+                assert_eq!(3, unit_sig_extract_inputs.len());
+                let input_arg1_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[0]);
+                let input_arg2_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[1]);
+                let input_arg3_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[2]);
+                assert_eq!(*input_arg1_ty, *llhd::ty::int_ty(1));
+                assert_eq!(*input_arg2_ty, *llhd::ty::int_ty(1));
+                assert_eq!(*input_arg3_ty, *llhd::ty::int_ty(1));
+                let unit_sig_extract_outputs = unit_sig_extract.outputs().collect_vec();
+                assert_eq!(1, unit_sig_extract_outputs.len());
+                let output_arg1_ty = unit_sig_extract.arg_type(unit_sig_extract_outputs[0]);
+                assert_eq!(*output_arg1_ty, *llhd::ty::signal_ty(llhd::ty::int_ty(1)));
+                expr_to_unit_data(
+                    extracted_expr,
+                    unit_kind_extract,
+                    unit_name_extract,
+                    unit_sig_extract,
+                )
+            }
+            Err(msg) => panic!("Failure to extract Term DAG from EGraph: {:?}", msg),
         }
-        let unit_sig_extract_inputs = unit_sig_extract.inputs().collect_vec();
-        assert_eq!(3, unit_sig_extract_inputs.len());
-        let input_arg1_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[0]);
-        let input_arg2_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[1]);
-        let input_arg3_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[2]);
-        assert_eq!(*input_arg1_ty, *llhd::ty::int_ty(1));
-        assert_eq!(*input_arg2_ty, *llhd::ty::int_ty(1));
-        assert_eq!(*input_arg3_ty, *llhd::ty::int_ty(1));
-        let unit_sig_extract_outputs = unit_sig_extract.outputs().collect_vec();
-        assert_eq!(1, unit_sig_extract_outputs.len());
-        let output_arg1_ty = unit_sig_extract.arg_type(unit_sig_extract_outputs[0]);
-        assert_eq!(*output_arg1_ty, *llhd::ty::signal_ty(llhd::ty::int_ty(1)));
-        expr_to_unit_data(
-            extracted_expr,
-            unit_kind_extract,
-            unit_name_extract,
-            unit_sig_extract,
-        )
     };
     test_module[test_unit_id] = rewrite_module(&test_module);
     let new_unit_data = test_module.unit(test_unit_id);

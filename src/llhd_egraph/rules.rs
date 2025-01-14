@@ -9,8 +9,8 @@ impl FromStr for LLHDEgglogRules {
     type Err = egglog::ast::parse::ParseError;
 
     fn from_str(rule_str: &str) -> Result<Self, Self::Err> {
-        let egglog_parser = egglog::ast::Parser::default();
-        match egglog::ast::parse_program(None, rule_str, &egglog_parser) {
+        let mut egglog_parser = egglog::ast::Parser::default();
+        match egglog_parser.get_program_from_string(None, rule_str) {
             Ok(rule_cmds) => Ok(Self(rule_cmds)),
             Err(err_msgs) => Err(err_msgs),
         }

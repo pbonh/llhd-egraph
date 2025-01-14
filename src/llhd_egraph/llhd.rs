@@ -208,18 +208,23 @@ impl From<EgglogProgram> for LLHDModule {
             let (unit_sort, unit_symbol_value) = egraph
                 .eval_expr(&GenericExpr::Var(DUMMY_SPAN.clone(), unit_symbol))
                 .unwrap();
-            let (_unit_cost, unit_term) =
-                egraph.extract(unit_symbol_value, &mut extracted_termdag, &unit_sort);
-            let extracted_expr = extracted_termdag.term_to_expr(&unit_term, DUMMY_SPAN.clone());
-            let (unit_kind_extract, unit_name_extract, unit_sig_extract) =
-                expr_to_unit_info(extracted_expr.clone());
-            let unit_data = expr_to_unit_data(
-                extracted_expr,
-                unit_kind_extract,
-                unit_name_extract,
-                unit_sig_extract,
-            );
-            let _unit_id = module.add_unit(unit_data);
+            // let (_unit_cost, unit_term) =
+            match egraph.extract(unit_symbol_value, &mut extracted_termdag, &unit_sort) {
+                Ok((_unit_cost, unit_term)) => {
+                    let extracted_expr =
+                        extracted_termdag.term_to_expr(&unit_term, DUMMY_SPAN.clone());
+                    let (unit_kind_extract, unit_name_extract, unit_sig_extract) =
+                        expr_to_unit_info(extracted_expr.clone());
+                    let unit_data = expr_to_unit_data(
+                        extracted_expr,
+                        unit_kind_extract,
+                        unit_name_extract,
+                        unit_sig_extract,
+                    );
+                    let _unit_id = module.add_unit(unit_data);
+                }
+                Err(msg) => panic!("Failure to extract Term DAG from EGraph: {:?}", msg),
+            }
         }
         module.verify();
         module

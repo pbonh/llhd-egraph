@@ -9,8 +9,8 @@ impl FromStr for LLHDEgglogSchedules {
     type Err = egglog::ast::ParseError;
 
     fn from_str(schedule_str: &str) -> Result<Self, Self::Err> {
-        let egglog_parser = egglog::ast::Parser::default();
-        match egglog::ast::parse_program(None, schedule_str, &egglog_parser) {
+        let mut egglog_parser = egglog::ast::Parser::default();
+        match egglog_parser.get_program_from_string(None, schedule_str) {
             Ok(schedule_cmds) => Ok(Self(schedule_cmds)),
             Err(err_msgs) => Err(err_msgs),
         }
