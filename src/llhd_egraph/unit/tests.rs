@@ -19,14 +19,14 @@ fn build_egglog_program_from_unit() {
         egglog_facts.0.len(),
         "There should be 1 fact in program."
     );
-    if let GenericCommand::Action(let_action) = &egglog_facts.0[0] {
-        if let GenericAction::Let(_dummy, let_stmt_symbol, _let_stmt) = let_action {
-            assert_eq!(
-                "unit_0",
-                let_stmt_symbol.to_string(),
-                "Let Stmt should match UnitName"
-            );
-        };
+    if let GenericCommand::Action(GenericAction::Let(_dummy, let_stmt_symbol, _let_stmt)) =
+        &egglog_facts.0[0]
+    {
+        assert_eq!(
+            "unit_0",
+            let_stmt_symbol.to_string(),
+            "Let Stmt should match UnitName"
+        );
     };
 }
 
@@ -288,101 +288,97 @@ fn llhd_egglog_dfg_expression_tree_dual_output() {
 //         )
 // }
 
-#[test]
-fn llhd_rewrite_egglog_program() {
-    let mut test_module = utilities::load_llhd_module("2and_1or_common.llhd");
-    let test_unit_id = LLHDUtils::iterate_unit_ids(&test_module).collect_vec()[0];
-    let rewrite_module = |module: &Module| {
-        let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
-        let mut egraph = EGraph::default();
-        let _egraph_msgs_datatypes = egraph.run_program(llhd_dfg_sort.into());
-        let _egraph_msgs_rules =
-            utilities::load_egraph_rewrite_rules("llhd_div_extract.egg", &mut egraph);
-        assert_eq!(
-            0,
-            egraph.num_tuples(),
-            "There should be 0 facts initially in the egraph."
-        );
+fn rewrite_module(module: &Module) -> UnitData {
+    let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
+    let mut egraph = EGraph::default();
+    let _egraph_msgs_datatypes = egraph.run_program(llhd_dfg_sort.into());
+    let _egraph_msgs_rules =
+        utilities::load_egraph_rewrite_rules("llhd_div_extract.egg", &mut egraph);
+    assert_eq!(
+        0,
+        egraph.num_tuples(),
+        "There should be 0 facts initially in the egraph."
+    );
 
-        let module_facts = LLHDEgglogFacts::from_module(module);
-        if let Err(egraph_run_facts_err) = egraph.run_program(module_facts.into()) {
-            panic!(
-                "EGraph failed to add facts. ERROR: {:?}",
-                egraph_run_facts_err
-            );
-        }
-        assert!(
-            egraph
-                .get_overall_run_report()
-                .num_matches_per_rule
-                .values()
-                .next()
-                .is_none(),
-            "There should be no matches yet, as the rule schedule hasn't run yet."
+    let module_facts = LLHDEgglogFacts::from_module(module);
+    if let Err(egraph_run_facts_err) = egraph.run_program(module_facts.into()) {
+        panic!(
+            "EGraph failed to add facts. ERROR: {:?}",
+            egraph_run_facts_err
         );
-
-        assert_eq!(
-            20,
-            egraph.num_tuples(),
-            "There should be 20 facts remaining in the egraph."
-        );
-
-        let div_extract_ruleset_symbol = Symbol::new("div-ext");
-        let div_extract_schedule = GenericRunConfig::<Symbol, Symbol> {
-            ruleset: div_extract_ruleset_symbol,
-            until: None,
-        };
-        let schedule_cmd = GenericCommand::RunSchedule(GenericSchedule::Run(
-            DUMMY_SPAN.clone(),
-            div_extract_schedule,
-        ));
-        let egraph_run_schedule = egraph.run_program(vec![schedule_cmd]);
-        assert!(
-            egraph_run_schedule.is_ok(),
-            "EGraph failed to run schedule."
-        );
-        assert_eq!(
-            22,
-            egraph.num_tuples(),
-            "There should be 22 facts remaining in the egraph(new 'And', new 'Or' nodes)."
-        );
-
-        let egraph_run_rules_matches = egraph
+    }
+    assert!(
+        egraph
             .get_overall_run_report()
             .num_matches_per_rule
             .values()
             .next()
-            .unwrap();
-        assert_eq!(
-            1, *egraph_run_rules_matches,
-            "There should be 1 match for divisor extraction rewrite rule."
+            .is_none(),
+        "There should be no matches yet, as the rule schedule hasn't run yet."
+    );
+
+    assert_eq!(
+        20,
+        egraph.num_tuples(),
+        "There should be 20 facts remaining in the egraph."
+    );
+
+    let div_extract_ruleset_symbol = Symbol::new("div-ext");
+    let div_extract_schedule = GenericRunConfig::<Symbol, Symbol> {
+        ruleset: div_extract_ruleset_symbol,
+        until: None,
+    };
+    let schedule_cmd = GenericCommand::RunSchedule(GenericSchedule::Run(
+        DUMMY_SPAN.clone(),
+        div_extract_schedule,
+    ));
+    let egraph_run_schedule = egraph.run_program(vec![schedule_cmd]);
+    assert!(
+        egraph_run_schedule.is_ok(),
+        "EGraph failed to run schedule."
+    );
+    assert_eq!(
+        22,
+        egraph.num_tuples(),
+        "There should be 22 facts remaining in the egraph(new 'And', new 'Or' nodes)."
+    );
+
+    let egraph_run_rules_matches = egraph
+        .get_overall_run_report()
+        .num_matches_per_rule
+        .values()
+        .next()
+        .unwrap();
+    assert_eq!(
+        1, *egraph_run_rules_matches,
+        "There should be 1 match for divisor extraction rewrite rule."
+    );
+
+    let test_entity_symbol = Symbol::new("unit_test_entity");
+    let extract_cmd = GenericCommand::QueryExtract {
+        span: DUMMY_SPAN.clone(),
+        variants: 0,
+        expr: GenericExpr::Var(DUMMY_SPAN.clone(), test_entity_symbol),
+    };
+    if let Err(egraph_extract_expr_msg) = egraph.run_program(vec![extract_cmd]) {
+        panic!(
+            "EGraph failed to extract expression. ERROR: {:?}",
+            egraph_extract_expr_msg
         );
+    }
 
-        let test_entity_symbol = Symbol::new("unit_test_entity");
-        let extract_cmd = GenericCommand::QueryExtract {
-            span: DUMMY_SPAN.clone(),
-            variants: 0,
-            expr: GenericExpr::Var(DUMMY_SPAN.clone(), test_entity_symbol),
-        };
-        if let Err(egraph_extract_expr_msg) = egraph.run_program(vec![extract_cmd]) {
-            panic!(
-                "EGraph failed to extract expression. ERROR: {:?}",
-                egraph_extract_expr_msg
+    let mut extracted_termdag = TermDag::default();
+    let (unit_sort, test_unit_symbol_value) = egraph
+        .eval_expr(&GenericExpr::Var(DUMMY_SPAN.clone(), test_entity_symbol))
+        .unwrap();
+    match egraph.extract(test_unit_symbol_value, &mut extracted_termdag, &unit_sort) {
+        Ok((_unit_cost, unit_term)) => {
+            let extracted_expr = extracted_termdag.term_to_expr(&unit_term, DUMMY_SPAN.clone());
+            assert!(
+                matches!(extracted_expr, GenericExpr::Call { .. }),
+                "Top level expression should be a call."
             );
-        }
-
-        let mut extracted_termdag = TermDag::default();
-        let (unit_sort, test_unit_symbol_value) = egraph
-            .eval_expr(&GenericExpr::Var(DUMMY_SPAN.clone(), test_entity_symbol))
-            .unwrap();
-        match egraph.extract(test_unit_symbol_value, &mut extracted_termdag, &unit_sort) {
-            Ok((_unit_cost, unit_term)) => {
-                let extracted_expr = extracted_termdag.term_to_expr(&unit_term, DUMMY_SPAN.clone());
-                assert!(
-                    matches!(extracted_expr, GenericExpr::Call { .. }),
-                    "Top level expression should be a call."
-                );
-                let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
+            let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
                 (LLHDUnit 0 (Entity ) \"@test_entity\"
                     (vec-of (Value (IntTy 1) 0) (Value (IntTy 1) 1) (Value (IntTy 1) 2))
                     (vec-of (Value (Signal (IntTy 1)) 3)) (vec-of
@@ -395,37 +391,42 @@ fn llhd_rewrite_egglog_program() {
                             (ValueRef (Value (IntTy 1) 1)))
                         (ConstTime 1 (Time ) \"0s 1e\"))))
             "});
-                assert_eq!(expected_str, extracted_expr.to_string());
-                let (unit_kind_extract, unit_name_extract, unit_sig_extract) =
-                    expr_to_unit_info(extracted_expr.clone());
-                assert!(matches!(unit_kind_extract, UnitKind::Entity));
-                if let UnitName::Global(uname) = unit_name_extract.clone() {
-                    assert_eq!(uname, "\"test_entity\"");
-                } else {
-                    panic!("UnitName is of incorrect type, should be UnitName::Global");
-                }
-                let unit_sig_extract_inputs = unit_sig_extract.inputs().collect_vec();
-                assert_eq!(3, unit_sig_extract_inputs.len());
-                let input_arg1_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[0]);
-                let input_arg2_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[1]);
-                let input_arg3_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[2]);
-                assert_eq!(*input_arg1_ty, *llhd::ty::int_ty(1));
-                assert_eq!(*input_arg2_ty, *llhd::ty::int_ty(1));
-                assert_eq!(*input_arg3_ty, *llhd::ty::int_ty(1));
-                let unit_sig_extract_outputs = unit_sig_extract.outputs().collect_vec();
-                assert_eq!(1, unit_sig_extract_outputs.len());
-                let output_arg1_ty = unit_sig_extract.arg_type(unit_sig_extract_outputs[0]);
-                assert_eq!(*output_arg1_ty, *llhd::ty::signal_ty(llhd::ty::int_ty(1)));
-                expr_to_unit_data(
-                    extracted_expr,
-                    unit_kind_extract,
-                    unit_name_extract,
-                    unit_sig_extract,
-                )
+            assert_eq!(expected_str, extracted_expr.to_string());
+            let (unit_kind_extract, unit_name_extract, unit_sig_extract) =
+                expr_to_unit_info(extracted_expr.clone());
+            assert!(matches!(unit_kind_extract, UnitKind::Entity));
+            if let UnitName::Global(uname) = unit_name_extract.clone() {
+                assert_eq!(uname, "\"test_entity\"");
+            } else {
+                panic!("UnitName is of incorrect type, should be UnitName::Global");
             }
-            Err(msg) => panic!("Failure to extract Term DAG from EGraph: {:?}", msg),
+            let unit_sig_extract_inputs = unit_sig_extract.inputs().collect_vec();
+            assert_eq!(3, unit_sig_extract_inputs.len());
+            let input_arg1_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[0]);
+            let input_arg2_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[1]);
+            let input_arg3_ty = unit_sig_extract.arg_type(unit_sig_extract_inputs[2]);
+            assert_eq!(*input_arg1_ty, *llhd::ty::int_ty(1));
+            assert_eq!(*input_arg2_ty, *llhd::ty::int_ty(1));
+            assert_eq!(*input_arg3_ty, *llhd::ty::int_ty(1));
+            let unit_sig_extract_outputs = unit_sig_extract.outputs().collect_vec();
+            assert_eq!(1, unit_sig_extract_outputs.len());
+            let output_arg1_ty = unit_sig_extract.arg_type(unit_sig_extract_outputs[0]);
+            assert_eq!(*output_arg1_ty, *llhd::ty::signal_ty(llhd::ty::int_ty(1)));
+            expr_to_unit_data(
+                extracted_expr,
+                unit_kind_extract,
+                unit_name_extract,
+                unit_sig_extract,
+            )
         }
-    };
+        Err(msg) => panic!("Failure to extract Term DAG from EGraph: {:?}", msg),
+    }
+}
+
+#[test]
+fn llhd_rewrite_egglog_program() {
+    let mut test_module = utilities::load_llhd_module("2and_1or_common.llhd");
+    let test_unit_id = LLHDUtils::iterate_unit_ids(&test_module).collect_vec()[0];
     test_module[test_unit_id] = rewrite_module(&test_module);
     let new_unit_data = test_module.unit(test_unit_id);
     let new_unit_insts = new_unit_data.all_insts().collect_vec();
