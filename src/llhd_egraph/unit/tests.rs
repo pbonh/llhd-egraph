@@ -262,10 +262,25 @@ fn dfg_expression_tree_dual_output() {
     );
 }
 
-use test_log::test;
-#[test_log::test]
+#[test]
 fn dfg_expression_tree_dual_output_no_redundant_insts_roundtrip() {
     let module = LLHDModule::from(utilities::load_llhd_module("dual_outputs_single_dfg.llhd"));
+    let egglog_program: EgglogProgram = module.clone().into();
+    let module_from_egglog: LLHDModule = egglog_program.into();
+
+    let original_module = LLHDModuleTester::from(module);
+    let round_trip_module = LLHDModuleTester::from(module_from_egglog);
+    assert_eq!(
+        original_module, round_trip_module,
+        "Round-trip Module does not match original."
+    );
+}
+
+#[test]
+fn dfg_expression_tree_triple_output_no_redundant_insts_roundtrip() {
+    let module = LLHDModule::from(utilities::load_llhd_module(
+        "triple_outputs_single_dfg.llhd",
+    ));
     let egglog_program: EgglogProgram = module.clone().into();
     let module_from_egglog: LLHDModule = egglog_program.into();
 
