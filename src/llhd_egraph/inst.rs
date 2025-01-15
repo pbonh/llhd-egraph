@@ -599,6 +599,15 @@ pub(in crate::llhd_egraph) fn literal_llhd_value(literal: &Literal) -> Value {
     }
 }
 
+pub(in crate::llhd_egraph) fn literal_llhd_inst_id(literal: &Literal) -> Inst {
+    match literal {
+        Literal::Int(value) => {
+            Inst::new(usize::try_from(*value).expect("Failure to convert from i64 to usize."))
+        }
+        _ => panic!("Non-Int Literal"),
+    }
+}
+
 fn int_value_expr(int_value: IntValue) -> Expr {
     let converted_literal = Literal::String(int_value.to_string().into());
     GenericExpr::Lit(DUMMY_SPAN.clone(), converted_literal)

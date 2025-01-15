@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 use egglog::ast::{
@@ -51,7 +51,7 @@ impl From<LLHDEgglogFacts> for EgglogFacts {
     }
 }
 
-type ExprFIFO = VecDeque<Expr>;
+type ExprWithIDFIFO = VecDeque<(Option<Inst>, Expr)>;
 type ValueStack = VecDeque<Value>;
 type IntValueStack = VecDeque<IntValue>;
 type TimeValueStack = VecDeque<TimeValue>;
@@ -153,23 +153,31 @@ fn from_unit(unit: &Unit<'_>) -> Action {
     Action::Let(DUMMY_SPAN.clone(), unit_symbol(*unit), unit_expr)
 }
 
-fn process_expr(expr: &Expr, expr_fifo: &mut ExprFIFO) {
+fn process_expr(expr: &Expr, expr_fifo: &mut ExprWithIDFIFO) {
     match expr {
         GenericExpr::Lit(_span, literal) => {
-            expr_fifo.push_front(Expr::Lit(DUMMY_SPAN.clone(), literal.to_owned()));
+            expr_fifo.push_front((None, Expr::Lit(DUMMY_SPAN.clone(), literal.to_owned())));
         }
         GenericExpr::Var(_span, symbol) => {
-            expr_fifo.push_front(Expr::Var(DUMMY_SPAN.clone(), symbol.to_owned()));
+            expr_fifo.push_front((None, Expr::Var(DUMMY_SPAN.clone(), symbol.to_owned())));
         }
-        GenericExpr::Call(_, symbol, dependencies) => {
+        GenericExpr::Call(_, symbol, children) => {
             if opcode::get_symbol_opcode(symbol).is_some() {
-                expr_fifo.push_front(Expr::Call(DUMMY_SPAN.clone(), symbol.to_owned(), vec![]));
-                for dep in dependencies.iter().skip(2) {
-                    process_expr(dep, expr_fifo);
+                if let GenericExpr::Lit(_span, llhd_literal) = &children[0] {
+                    let inst_id: Inst = literal_llhd_inst_id(llhd_literal);
+                    expr_fifo.push_front((
+                        Some(inst_id),
+                        Expr::Call(DUMMY_SPAN.clone(), symbol.to_owned(), vec![]),
+                    ));
+                    for dep in children.iter().skip(2) {
+                        process_expr(dep, expr_fifo);
+                    }
+                } else {
+                    panic!("Unhandled Expr type in LLHD DFG S-expression: {:?}", expr);
                 }
             } else if Symbol::new(LLHD_TYPE_INT_FIELD) == *symbol {
             } else {
-                for dep in dependencies.iter() {
+                for dep in children.iter() {
                     process_expr(dep, expr_fifo);
                 }
             }
@@ -177,15 +185,88 @@ fn process_expr(expr: &Expr, expr_fifo: &mut ExprFIFO) {
     }
 }
 
+fn process_expr_fifo_opcode(
+    opcode: Opcode,
+    value_stack: &mut ValueStack,
+    time_value_stack: &mut TimeValueStack,
+    unit_builder: &mut UnitBuilder,
+) {
+    match opcode {
+        Opcode::Or => {
+            let arg1_value = value_stack
+                .pop_back()
+                .expect("Or arg2 Stack empty despite still trying to process operation.");
+            let arg2_value = value_stack
+                .pop_back()
+                .expect("Or arg1 Stack empty despite still trying to process operation.");
+            value_stack.push_back(unit_builder.ins().or(arg1_value, arg2_value));
+        }
+        Opcode::And => {
+            let arg1_value = value_stack
+                .pop_back()
+                .expect("And arg2 Stack empty despite still trying to process operation.");
+            let arg2_value = value_stack
+                .pop_back()
+                .expect("And arg1 Stack empty despite still trying to process operation.");
+            value_stack.push_back(unit_builder.ins().and(arg1_value, arg2_value));
+        }
+        Opcode::ConstTime => {
+            let arg1_value = time_value_stack
+                .pop_back()
+                .expect("ConstTime arg1 Stack empty despite still trying to process operation.");
+            value_stack.push_back(unit_builder.ins().const_time(arg1_value));
+        }
+        Opcode::Drv => {
+            let arg1_value = value_stack
+                .pop_back()
+                .expect("Drv arg3 Stack empty despite still trying to process operation.");
+            let arg2_value = value_stack
+                .pop_back()
+                .expect("Drv arg2 Stack empty despite still trying to process operation.");
+            let arg3_value = value_stack
+                .pop_back()
+                .expect("Drv arg1 Stack empty despite still trying to process operation.");
+            let _ = unit_builder.ins().drv(arg1_value, arg2_value, arg3_value);
+        }
+        _ => {
+            panic!("Unhandled opcode => {:?}", opcode);
+        }
+    }
+}
+
+fn backfill_expr_fifo_opcode(
+    inst_id: Inst,
+    opcode: Opcode,
+    value_stack: &mut ValueStack,
+    time_value_stack: &mut TimeValueStack,
+    unit_builder: &UnitBuilder,
+) {
+    if let Some(inst_ret_value) = unit_builder.get_inst_result(inst_id) {
+        match opcode {
+            Opcode::ConstTime => {
+                if let Some(_time_value) = unit_builder.get_const_time(inst_ret_value) {
+                    // time_value_stack.push_back(time_value.clone());
+                    time_value_stack.pop_back();
+                }
+            }
+            _ => {
+                value_stack.pop_back();
+                value_stack.pop_back();
+            }
+        }
+        value_stack.push_back(inst_ret_value);
+    }
+}
+
 fn process_expr_fifo(
-    expr_fifo: ExprFIFO,
+    expr_fifo: ExprWithIDFIFO,
     value_stack: &mut ValueStack,
     _int_value_stack: &mut IntValueStack,
     time_value_stack: &mut TimeValueStack,
     unit_builder: &mut UnitBuilder,
 ) {
-    let mut visited_symbols: EgglogSymbols = Default::default();
-    for expr in expr_fifo {
+    let mut visited_llhd_inst_ids: HashSet<Inst> = Default::default();
+    for (inst_id_option, expr) in expr_fifo {
         match expr {
             GenericExpr::Lit(_span, literal) => match literal {
                 Literal::Int(_value) => {
@@ -199,58 +280,32 @@ fn process_expr_fifo(
                 }
             },
             GenericExpr::Var(_span, symbol) => {
-                visited_symbols.insert(symbol);
                 panic!("Unhandled ExprFIFO GenericExpr::Var Symbol => {:?}", symbol)
             }
-            GenericExpr::Call(_, symbol, _dependencies) => {
-                // if !visited_symbols.contains(&symbol) {
+            GenericExpr::Call(_, symbol, _children) => {
                 if let Some(opcode) = opcode::get_symbol_opcode(&symbol) {
-                    match opcode {
-                        Opcode::Or => {
-                            let arg1_value = value_stack.pop_back().expect(
-                                "Or arg2 Stack empty despite still trying to process operation.",
+                    if let Some(inst_id) = inst_id_option {
+                        if !visited_llhd_inst_ids.contains(&inst_id) {
+                            process_expr_fifo_opcode(
+                                opcode,
+                                value_stack,
+                                time_value_stack,
+                                unit_builder,
                             );
-                            let arg2_value = value_stack.pop_back().expect(
-                                "Or arg1 Stack empty despite still trying to process operation.",
+                            visited_llhd_inst_ids.insert(inst_id);
+                        } else {
+                            backfill_expr_fifo_opcode(
+                                inst_id,
+                                opcode,
+                                value_stack,
+                                time_value_stack,
+                                unit_builder,
                             );
-                            value_stack.push_back(unit_builder.ins().or(arg1_value, arg2_value));
-                        }
-                        Opcode::And => {
-                            let arg1_value = value_stack.pop_back().expect(
-                                "And arg2 Stack empty despite still trying to process operation.",
-                            );
-                            let arg2_value = value_stack.pop_back().expect(
-                                "And arg1 Stack empty despite still trying to process operation.",
-                            );
-                            value_stack.push_back(unit_builder.ins().and(arg1_value, arg2_value));
-                        }
-                        Opcode::ConstTime => {
-                            let arg1_value = time_value_stack
-                                .pop_back()
-                                .expect("ConstTime arg1 Stack empty despite still trying to process operation.");
-                            value_stack.push_back(unit_builder.ins().const_time(arg1_value));
-                        }
-                        Opcode::Drv => {
-                            let arg1_value = value_stack.pop_back().expect(
-                                "Drv arg3 Stack empty despite still trying to process operation.",
-                            );
-                            let arg2_value = value_stack.pop_back().expect(
-                                "Drv arg2 Stack empty despite still trying to process operation.",
-                            );
-                            let arg3_value = value_stack.pop_back().expect(
-                                "Drv arg1 Stack empty despite still trying to process operation.",
-                            );
-                            let _ = unit_builder.ins().drv(arg1_value, arg2_value, arg3_value);
-                        }
-                        _ => {
-                            panic!("Unhandled opcode => {:?}", opcode);
                         }
                     }
                 } else {
                     panic!("Unhandled symbol => {:?}", symbol)
                 }
-                // }
-                visited_symbols.insert(symbol);
             }
         }
     }
@@ -386,9 +441,13 @@ pub(crate) fn expr_to_unit_data(
 ) -> UnitData {
     let mut unit_data = UnitData::new(unit_kind, unit_name, unit_sig);
     let mut unit_builder = UnitBuilder::new_anonymous(&mut unit_data);
-    let mut expr_fifo: ExprFIFO = Default::default();
+    let mut expr_fifo: ExprWithIDFIFO = Default::default();
 
-    process_expr(&unit_expr, &mut expr_fifo);
+    if let GenericExpr::Call(_, symbol, ref unit_info_and_data_exprs) = unit_expr {
+        if symbol == Symbol::new(LLHD_UNIT_FIELD) && unit_info_and_data_exprs.len() == 6 {
+            process_expr(&unit_info_and_data_exprs[5], &mut expr_fifo);
+        }
+    }
 
     let mut value_stack: ValueStack = Default::default();
     let mut int_value_stack: IntValueStack = Default::default();

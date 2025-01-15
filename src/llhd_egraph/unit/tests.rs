@@ -7,6 +7,8 @@ use llhd::ir::InstData;
 use llhd::table::TableKey;
 
 use super::*;
+use crate::llhd::module::LLHDModule;
+use crate::llhd::LLHDModuleTester;
 use crate::llhd_egraph::datatype::LLHDEgglogSorts;
 
 #[test]
@@ -227,7 +229,7 @@ fn llhd_egglog_dfg_expression_tree3() {
 }
 
 #[test]
-fn llhd_egglog_dfg_expression_tree_dual_output() {
+fn dfg_expression_tree_dual_output() {
     let module = utilities::load_llhd_module("dual_outputs_single_dfg.llhd");
     let units = LLHDUtils::iterate_unit_ids(&module).collect_vec();
     let unit = module.unit(*units.first().unwrap());
@@ -257,6 +259,21 @@ fn llhd_egglog_dfg_expression_tree_dual_output() {
         expected_str,
         egglog_expr.to_string(),
         "Generated LLHD Egglog expression doesn't match expected value."
+    );
+}
+
+use test_log::test;
+#[test_log::test]
+fn dfg_expression_tree_dual_output_no_redundant_insts_roundtrip() {
+    let module = LLHDModule::from(utilities::load_llhd_module("dual_outputs_single_dfg.llhd"));
+    let egglog_program: EgglogProgram = module.clone().into();
+    let module_from_egglog: LLHDModule = egglog_program.into();
+
+    let original_module = LLHDModuleTester::from(module);
+    let round_trip_module = LLHDModuleTester::from(module_from_egglog);
+    assert_eq!(
+        original_module, round_trip_module,
+        "Round-trip Module does not match original."
     );
 }
 
