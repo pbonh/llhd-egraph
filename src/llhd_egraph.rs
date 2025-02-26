@@ -64,12 +64,12 @@ mod tests {
         let llhd_egglog_schedule = EgglogSchedules::default().add_schedule_str(
             &utilities::get_egglog_commands("llhd_div_extract_schedule.egg"),
         );
-        let egglog_program = EgglogProgramBuilder::<InitState>::new()
+        let egglog_program = EgglogProgramBuilder::initialize()
             .sorts(llhd_egglog_program.sorts().clone().into())
             .facts(llhd_egglog_program.facts().clone().into())
+            .bindings(llhd_bindings)
             .rules(llhd_egglog_program.rules().clone().into())
             .schedules(llhd_egglog_schedule)
-            .bindings(llhd_bindings)
             .program();
 
         let extracted_module = LLHDModule::from(egglog_program);

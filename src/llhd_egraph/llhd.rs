@@ -132,16 +132,12 @@ impl From<LLHDModule> for EgglogProgram {
     fn from(module: LLHDModule) -> Self {
         let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
         let module_facts = LLHDEgglogFacts::from_module(&module);
-        let rules = EgglogRules::default();
-        let schedules = EgglogSchedules::default();
         let unit_symbols: EgglogSymbols = module.units().map(unit_symbol).collect();
-        EgglogProgramBuilder::<InitState>::new()
+        EgglogProgramBuilder::initialize()
             .sorts(llhd_dfg_sort.into())
             .facts(module_facts.into())
-            .rules(rules)
-            .schedules(schedules)
             .bindings(unit_symbols)
-            .program()
+            .variables()
     }
 }
 
@@ -159,7 +155,7 @@ impl From<LLHDEgglogRuleset> for EgglogProgram {
         let rules = EgglogRules::from(llhd_rules);
         let schedules = EgglogSchedules::from(llhd_schedules);
         let unit_symbols: EgglogSymbols = module.units().map(unit_symbol).collect();
-        EgglogProgramBuilder::<InitState>::new()
+        EgglogProgramBuilder::initialize()
             .sorts(llhd_dfg_sort.into())
             .facts(module_facts.into())
             .rules(rules)
@@ -173,16 +169,12 @@ impl From<&LLHDModule> for EgglogProgram {
     fn from(module: &LLHDModule) -> Self {
         let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
         let module_facts = LLHDEgglogFacts::from_module(module);
-        let rules = EgglogRules::default();
-        let schedules = EgglogSchedules::default();
         let unit_symbols: EgglogSymbols = module.units().map(unit_symbol).collect();
-        EgglogProgramBuilder::<InitState>::new()
+        EgglogProgramBuilder::initialize()
             .sorts(llhd_dfg_sort.into())
             .facts(module_facts.into())
-            .rules(rules)
-            .schedules(schedules)
             .bindings(unit_symbols)
-            .program()
+            .variables()
     }
 }
 
@@ -361,8 +353,8 @@ mod tests {
         let egglog_program = EgglogProgram::from(test_module);
         assert_eq!(24, egglog_program.sorts().1.len());
         assert_eq!(1, egglog_program.facts().1.len());
-        assert_eq!(0, egglog_program.rules()[0].len());
-        assert_eq!(0, egglog_program.schedules()[0].len());
+        assert_eq!(0, egglog_program.rules().len());
+        assert_eq!(0, egglog_program.schedules().len());
         assert_eq!(1, egglog_program.bindings().len());
         println!("{:?}", egglog_program.sorts());
         let round_trip_test_module = LLHDModule::from(egglog_program);
