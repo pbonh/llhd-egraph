@@ -595,3 +595,79 @@ fn llhd_egglog_ext_unit_datatypes() {
         "Datatype should be named 'LLHDExtUnit' and should have 1 field named (ExtUnit i64)."
     );
 }
+
+#[test]
+fn llhd_egglog_terminator_datatype() {
+    let term_datatype = terminator();
+    let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
+            (datatype LLHDTerminator
+                (TermBr LLHDBlock)
+                (TermBrCond LLHDTy LLHDDFG LLHDBlock LLHDBlock)
+                (TermWait LLHDBlock LLHDVecValue)
+                (TermWaitTime LLHDBlock LLHDVecValue)
+                (TermHalt)
+                (TermRet)
+                (TermRetValue LLHDTy LLHDDFG))
+        "});
+    assert_eq!(expected_str, term_datatype.to_string());
+}
+
+#[test]
+fn llhd_egglog_effect_datatype() {
+    let effect_datatype = effect();
+    let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
+            (datatype LLHDEffect
+                (EffectSig LLHDTy LLHDDFG)
+                (EffectDrv LLHDTy LLHDDFG LLHDDFG LLHDDFG)
+                (EffectDrvCond LLHDTy LLHDDFG LLHDDFG LLHDDFG LLHDDFG)
+                (EffectVar LLHDTy LLHDDFG)
+                (EffectLd LLHDTy LLHDDFG)
+                (EffectSt LLHDTy LLHDDFG LLHDDFG)
+                (EffectCall LLHDTy LLHDExtUnit i64 LLHDVecValue)
+                (EffectInst LLHDTy LLHDExtUnit i64 LLHDVecValue))
+        "});
+    assert_eq!(expected_str, effect_datatype.to_string());
+}
+
+#[test]
+fn llhd_egglog_effect_vec_sort() {
+    let vec_effect_sort = vec_effect();
+    let expected_str = "(sort LLHDVecEffect (Vec LLHDEffect))".to_owned();
+    assert_eq!(expected_str, vec_effect_sort.to_string());
+}
+
+#[test]
+fn llhd_egglog_block_cfg_skeleton_datatypes() {
+    let block_skeleton_datatype = block_skeleton();
+    let expected_block_skeleton = utilities::trim_expr_whitespace(indoc::indoc! {"
+            (datatype LLHDBlockSkeleton
+                (BlockSkeleton LLHDBlock LLHDVecValue LLHDVecEffect LLHDTerminator))
+        "});
+    assert_eq!(expected_block_skeleton, block_skeleton_datatype.to_string());
+
+    let vec_block_skeleton_sort = vec_block_skeleton();
+    let expected_vec_block_skeleton =
+        "(sort LLHDVecBlockSkeleton (Vec LLHDBlockSkeleton))".to_owned();
+    assert_eq!(
+        expected_vec_block_skeleton,
+        vec_block_skeleton_sort.to_string()
+    );
+
+    let cfg_skeleton_datatype = cfg_skeleton();
+    let expected_cfg_skeleton = utilities::trim_expr_whitespace(indoc::indoc! {"
+            (datatype LLHDCFGSkeleton (CFGSkeleton LLHDVecBlockSkeleton))
+        "});
+    assert_eq!(expected_cfg_skeleton, cfg_skeleton_datatype.to_string());
+}
+
+#[test]
+fn llhd_egglog_unit_with_cfg_datatype() {
+    let unit_datatype = unit_def();
+    let expected_str = utilities::trim_expr_whitespace(indoc::indoc! {"
+            (datatype LLHDUnitDFG
+                (LLHDUnit i64 LLHDUnitKind String LLHDVecValue LLHDVecValue LLHDUnitDFGContext)
+                (LLHDUnitWithCFG i64 LLHDUnitKind String LLHDVecValue LLHDVecValue LLHDUnitDFGContext LLHDCFGSkeleton)
+                (LLHDUnitDecl i64 LLHDUnitKind String LLHDVecValue LLHDVecValue))
+        "});
+    assert_eq!(expected_str, unit_datatype.to_string());
+}

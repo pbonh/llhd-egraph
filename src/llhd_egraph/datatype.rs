@@ -66,9 +66,15 @@ pub(in crate::llhd_egraph) fn unit_root_variant_symbol() -> Symbol {
 
 #[cfg(test)]
 mod tests {
+    use egglog::ast::Command;
     use egglog::EGraph;
 
     use super::*;
+    use crate::llhd_egraph::egglog_names::{
+        LLHD_BLOCK_SKELETON_DATATYPE, LLHD_CFG_SKELETON_DATATYPE, LLHD_EFFECT_DATATYPE,
+        LLHD_TERM_DATATYPE, LLHD_UNIT_DFG_DATATYPE, LLHD_UNIT_WITH_CFG_FIELD,
+        LLHD_VEC_BLOCK_SKELETON_DATATYPE, LLHD_VEC_EFFECT_DATATYPE,
+    };
 
     #[test]
     fn default_llhd_egglog_datatypes() {
@@ -91,6 +97,67 @@ mod tests {
             egraph_msgs.is_ok(),
             "Error loading LLHD DFG Datatype. Error: {:?}",
             egraph_msgs.err().unwrap()
+        );
+    }
+
+    #[test]
+    fn llhd_dfg_includes_cfg_skeleton_datatypes() {
+        let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
+        let cmd_list: EgglogCommandList = llhd_dfg_sort.into();
+
+        let mut has_term = false;
+        let mut has_effect = false;
+        let mut has_vec_effect = false;
+        let mut has_block_skel = false;
+        let mut has_vec_block_skel = false;
+        let mut has_cfg_skel = false;
+        let mut has_unit_with_cfg_variant = false;
+
+        for cmd in cmd_list.iter() {
+            match cmd {
+                Command::Datatype { name, variants, .. } => {
+                    let name_str = name.to_string();
+                    if name_str == LLHD_TERM_DATATYPE {
+                        has_term = true;
+                    } else if name_str == LLHD_EFFECT_DATATYPE {
+                        has_effect = true;
+                    } else if name_str == LLHD_BLOCK_SKELETON_DATATYPE {
+                        has_block_skel = true;
+                    } else if name_str == LLHD_CFG_SKELETON_DATATYPE {
+                        has_cfg_skel = true;
+                    } else if name_str == LLHD_UNIT_DFG_DATATYPE {
+                        has_unit_with_cfg_variant = variants
+                            .iter()
+                            .any(|variant| variant.name.to_string() == LLHD_UNIT_WITH_CFG_FIELD);
+                    }
+                }
+                Command::Sort(_span, name, _) => {
+                    let name_str = name.to_string();
+                    if name_str == LLHD_VEC_EFFECT_DATATYPE {
+                        has_vec_effect = true;
+                    } else if name_str == LLHD_VEC_BLOCK_SKELETON_DATATYPE {
+                        has_vec_block_skel = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        assert!(has_term, "LLHDTerminator datatype should be present");
+        assert!(has_effect, "LLHDEffect datatype should be present");
+        assert!(has_vec_effect, "LLHDVecEffect sort should be present");
+        assert!(
+            has_block_skel,
+            "LLHDBlockSkeleton datatype should be present"
+        );
+        assert!(
+            has_vec_block_skel,
+            "LLHDVecBlockSkeleton sort should be present"
+        );
+        assert!(has_cfg_skel, "LLHDCFGSkeleton datatype should be present");
+        assert!(
+            has_unit_with_cfg_variant,
+            "LLHDUnitDFG should include LLHDUnitWithCFG variant"
         );
     }
 }

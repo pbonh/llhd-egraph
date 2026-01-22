@@ -780,6 +780,216 @@ fn ext_unit() -> Command {
     }
 }
 
+fn terminator() -> Command {
+    let ty_datatype = Symbol::new(LLHD_TYPE_DATATYPE);
+    let block_datatype = Symbol::new(LLHD_BLOCK_DATATYPE);
+    let llhd_dfg_datatype = Symbol::new(LLHD_DFG_DATATYPE);
+    Command::Datatype {
+        span: DUMMY_SPAN.clone(),
+        name: Symbol::new(LLHD_TERM_DATATYPE),
+        variants: vec![
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_TERM_FIELD_BR),
+                types: vec![block_datatype.clone()],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_TERM_FIELD_BRCOND),
+                types: vec![
+                    ty_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                    block_datatype.clone(),
+                    block_datatype.clone(),
+                ],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_TERM_FIELD_WAIT),
+                types: vec![block_datatype.clone(), Symbol::new(LLHD_VEC_VALUE_DATATYPE)],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_TERM_FIELD_WAITTIME),
+                types: vec![block_datatype.clone(), Symbol::new(LLHD_VEC_VALUE_DATATYPE)],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_TERM_FIELD_HALT),
+                types: vec![],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_TERM_FIELD_RET),
+                types: vec![],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_TERM_FIELD_RETVALUE),
+                types: vec![ty_datatype, llhd_dfg_datatype],
+                cost: None,
+            },
+        ],
+    }
+}
+
+fn effect() -> Command {
+    let i64_sort = I64Sort;
+    let ty_datatype = Symbol::new(LLHD_TYPE_DATATYPE);
+    let llhd_dfg_datatype = Symbol::new(LLHD_DFG_DATATYPE);
+    let ext_unit_datatype = Symbol::new(LLHD_EXT_UNIT_DATATYPE);
+    let vec_value_datatype = Symbol::new(LLHD_VEC_VALUE_DATATYPE);
+    Command::Datatype {
+        span: DUMMY_SPAN.clone(),
+        name: Symbol::new(LLHD_EFFECT_DATATYPE),
+        variants: vec![
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_EFFECT_FIELD_SIG),
+                types: vec![ty_datatype.clone(), llhd_dfg_datatype.clone()],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_EFFECT_FIELD_DRV),
+                types: vec![
+                    ty_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                ],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_EFFECT_FIELD_DRVCOND),
+                types: vec![
+                    ty_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                ],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_EFFECT_FIELD_VAR),
+                types: vec![ty_datatype.clone(), llhd_dfg_datatype.clone()],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_EFFECT_FIELD_LD),
+                types: vec![ty_datatype.clone(), llhd_dfg_datatype.clone()],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_EFFECT_FIELD_ST),
+                types: vec![
+                    ty_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                    llhd_dfg_datatype.clone(),
+                ],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_EFFECT_FIELD_CALL),
+                types: vec![
+                    ty_datatype.clone(),
+                    ext_unit_datatype.clone(),
+                    i64_sort.name(),
+                    vec_value_datatype.clone(),
+                ],
+                cost: None,
+            },
+            Variant {
+                span: DUMMY_SPAN.clone(),
+                name: Symbol::new(LLHD_EFFECT_FIELD_INST),
+                types: vec![
+                    ty_datatype,
+                    ext_unit_datatype,
+                    i64_sort.name(),
+                    vec_value_datatype,
+                ],
+                cost: None,
+            },
+        ],
+    }
+}
+
+fn vec_effect() -> Command {
+    let vec_sort_symbol = Symbol::new(LLHD_VEC_EFFECT_DATATYPE);
+    let symbol_vec = Symbol::new(EGGLOG_VEC_SORT);
+    let effect_datatype = Symbol::new(LLHD_EFFECT_DATATYPE);
+    let effect_expr = Expr::Var(DUMMY_SPAN.clone(), effect_datatype);
+    Command::Sort(
+        DUMMY_SPAN.clone(),
+        vec_sort_symbol,
+        Some((symbol_vec, vec![effect_expr])),
+    )
+}
+
+fn block_skeleton() -> Command {
+    let block_datatype = Symbol::new(LLHD_BLOCK_DATATYPE);
+    let vec_value_datatype = Symbol::new(LLHD_VEC_VALUE_DATATYPE);
+    let vec_effect_datatype = Symbol::new(LLHD_VEC_EFFECT_DATATYPE);
+    let terminator_datatype = Symbol::new(LLHD_TERM_DATATYPE);
+    let block_skeleton_variant = Variant {
+        span: DUMMY_SPAN.clone(),
+        name: Symbol::new(LLHD_BLOCK_SKELETON_FIELD),
+        types: vec![
+            block_datatype,
+            vec_value_datatype,
+            vec_effect_datatype,
+            terminator_datatype,
+        ],
+        cost: None,
+    };
+    let symbol = Symbol::new(LLHD_BLOCK_SKELETON_DATATYPE);
+    Command::Datatype {
+        span: DUMMY_SPAN.clone(),
+        name: symbol,
+        variants: vec![block_skeleton_variant],
+    }
+}
+
+fn vec_block_skeleton() -> Command {
+    let vec_sort_symbol = Symbol::new(LLHD_VEC_BLOCK_SKELETON_DATATYPE);
+    let symbol_vec = Symbol::new(EGGLOG_VEC_SORT);
+    let block_skeleton_datatype = Symbol::new(LLHD_BLOCK_SKELETON_DATATYPE);
+    let block_skeleton_expr = Expr::Var(DUMMY_SPAN.clone(), block_skeleton_datatype);
+    Command::Sort(
+        DUMMY_SPAN.clone(),
+        vec_sort_symbol,
+        Some((symbol_vec, vec![block_skeleton_expr])),
+    )
+}
+
+fn cfg_skeleton() -> Command {
+    let block_skeleton_vec_datatype = Symbol::new(LLHD_VEC_BLOCK_SKELETON_DATATYPE);
+    let cfg_variant = Variant {
+        span: DUMMY_SPAN.clone(),
+        name: Symbol::new(LLHD_CFG_SKELETON_FIELD),
+        types: vec![block_skeleton_vec_datatype],
+        cost: None,
+    };
+    let symbol = Symbol::new(LLHD_CFG_SKELETON_DATATYPE);
+    Command::Datatype {
+        span: DUMMY_SPAN.clone(),
+        name: symbol,
+        variants: vec![cfg_variant],
+    }
+}
+
 fn unit_ctx() -> Command {
     let llhd_dfg_ctx_symbol = Symbol::new(LLHD_DFG_CTX_DATATYPE);
     let symbol_vec = Symbol::new(EGGLOG_VEC_SORT);
@@ -808,6 +1018,20 @@ fn unit_def() -> Command {
         ],
         cost: None,
     };
+    let unit_with_cfg_variant = Variant {
+        span: DUMMY_SPAN.clone(),
+        name: Symbol::new(LLHD_UNIT_WITH_CFG_FIELD),
+        types: vec![
+            i64_sort.name(),
+            LLHD_UNIT_KIND_DATATYPE.into(),
+            string_sort.name(),
+            LLHD_VEC_VALUE_DATATYPE.into(),
+            LLHD_VEC_VALUE_DATATYPE.into(),
+            LLHD_DFG_CTX_DATATYPE.into(),
+            LLHD_CFG_SKELETON_DATATYPE.into(),
+        ],
+        cost: None,
+    };
     let unit_decl_variant = Variant {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_UNIT_DECL_FIELD),
@@ -824,7 +1048,7 @@ fn unit_def() -> Command {
     Command::Datatype {
         span: DUMMY_SPAN.clone(),
         name: symbol,
-        variants: vec![unit_variant, unit_decl_variant],
+        variants: vec![unit_variant, unit_with_cfg_variant, unit_decl_variant],
     }
 }
 
@@ -838,6 +1062,12 @@ pub(in crate::llhd_egraph) fn unit_types() -> EgglogCommandList {
         block(),
         vec_block(),
         ext_unit(),
+        terminator(),
+        effect(),
+        vec_effect(),
+        block_skeleton(),
+        vec_block_skeleton(),
+        cfg_skeleton(),
         time_value(),
         reg_mode(),
         vec_regmode_sort(),
