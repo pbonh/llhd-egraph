@@ -7,7 +7,7 @@ use egglog::ast::{
 use egglog::sort::{I64Sort, Sort, StringSort};
 use itertools::Itertools;
 use llhd::ir::prelude::*;
-use llhd::ir::ValueData;
+use llhd::ir::{ExtUnit, InstData, Opcode, ValueData};
 use llhd::table::TableKey;
 use llhd::{IntValue, TimeValue, Type, TypeKind};
 use rayon::iter::ParallelIterator;
@@ -136,7 +136,12 @@ fn from_unit(unit: &Unit<'_>) -> Action {
         Symbol::new(EGGLOG_VEC_OF_OP),
         root_inst_exprs,
     );
-    let unit_expr_vec = vec![
+    let unit_expr_variant = if unit_kind == UnitKind::Entity {
+        unit_root_variant_symbol()
+    } else {
+        Symbol::new(LLHD_UNIT_WITH_CFG_FIELD)
+    };
+    let mut unit_expr_vec = vec![
         unit_id_expr,
         unit_kind_expr,
         unit_name_expr,
@@ -144,13 +149,335 @@ fn from_unit(unit: &Unit<'_>) -> Action {
         unit_output_sig_expr,
         unit_ctx_expr,
     ];
+    if unit_kind != UnitKind::Entity {
+        unit_expr_vec.push(cfg_skeleton_expr(unit));
+    }
 
-    let unit_expr = GenericExpr::Call(
-        DUMMY_SPAN.clone(),
-        unit_root_variant_symbol(),
-        unit_expr_vec,
-    );
+    let unit_expr = GenericExpr::Call(DUMMY_SPAN.clone(), unit_expr_variant, unit_expr_vec);
     Action::Let(DUMMY_SPAN.clone(), unit_symbol(*unit), unit_expr)
+}
+
+fn cfg_skeleton_expr(unit: &Unit<'_>) -> Expr {
+    let block_skeletons = unit
+        .blocks()
+        .map(|bb| block_skeleton_expr(unit, bb))
+        .collect_vec();
+    let vec_expr = Expr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(EGGLOG_VEC_OF_OP),
+        block_skeletons,
+    );
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(LLHD_CFG_SKELETON_FIELD),
+        vec![vec_expr],
+    )
+}
+
+fn block_skeleton_expr(unit: &Unit<'_>, bb: Block) -> Expr {
+    let block_expr = block_expr(bb);
+    let value_defs = unit
+        .insts(bb)
+        .filter_map(|inst| unit.get_inst_result(inst))
+        .map(|value| value_def_expr(unit.value_type(value), value))
+        .collect_vec();
+    let value_vec_expr = Expr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(EGGLOG_VEC_OF_OP),
+        value_defs,
+    );
+    let effect_vec_expr = Expr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(EGGLOG_VEC_OF_OP),
+        unit.insts(bb)
+            .filter_map(|inst| effect_expr(unit, inst, &unit[inst]))
+            .collect_vec(),
+    );
+    let terminator_expr = terminator_expr(unit, unit.terminator(bb), &unit[unit.terminator(bb)]);
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(LLHD_BLOCK_SKELETON_FIELD),
+        vec![block_expr, value_vec_expr, effect_vec_expr, terminator_expr],
+    )
+}
+
+fn block_expr(bb: Block) -> Expr {
+    let block_id = Literal::Int(
+        i64::try_from(bb.index()).expect("Out-of-bound value for usize -> i64 conversion."),
+    );
+    let block_id_expr = Expr::Lit(DUMMY_SPAN.clone(), block_id);
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(LLHD_BLOCK_FIELD),
+        vec![block_id_expr],
+    )
+}
+
+fn ext_unit_expr(ext_unit: ExtUnit) -> Expr {
+    let unit_id = Literal::Int(
+        i64::try_from(ext_unit.index()).expect("Out-of-bound value for usize -> i64 conversion."),
+    );
+    let unit_id_expr = Expr::Lit(DUMMY_SPAN.clone(), unit_id);
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(LLHD_EXT_UNIT_FIELD),
+        vec![unit_id_expr],
+    )
+}
+
+fn vec_value_expr(unit: &Unit<'_>, values: impl IntoIterator<Item = Value>) -> Expr {
+    let value_defs = values
+        .into_iter()
+        .map(|value| value_def_expr(unit.value_type(value), value))
+        .collect_vec();
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(EGGLOG_VEC_OF_OP),
+        value_defs,
+    )
+}
+
+fn dfg_value_expr(unit: &Unit<'_>, value: Value) -> Expr {
+    match &unit[value] {
+        ValueData::Inst { ty, inst } => inst_expr(unit, *inst, ty.clone(), &unit[*inst]),
+        ValueData::Arg { ty, arg } => value_ref_expr(ty.clone(), *arg),
+        ValueData::Placeholder { ty } => value_def_expr(ty.clone(), value),
+        ValueData::Invalid => panic!("Invalid value in CFG skeleton."),
+    }
+}
+
+fn effect_expr(unit: &Unit<'_>, inst: Inst, inst_data: &InstData) -> Option<Expr> {
+    let opcode = inst_data.opcode();
+    match inst_data {
+        InstData::Unary { args, .. } => match opcode {
+            Opcode::Sig => Some(effect_unary(
+                unit.inst_type(inst),
+                args[0],
+                LLHD_EFFECT_FIELD_SIG,
+                unit,
+            )),
+            Opcode::Var => Some(effect_unary(
+                unit.value_type(args[0]),
+                args[0],
+                LLHD_EFFECT_FIELD_VAR,
+                unit,
+            )),
+            Opcode::Ld => Some(effect_unary(
+                unit.inst_type(inst),
+                args[0],
+                LLHD_EFFECT_FIELD_LD,
+                unit,
+            )),
+            Opcode::RetValue => None,
+            _ => None,
+        },
+        InstData::Binary { args, .. } => match opcode {
+            Opcode::St => Some(effect_binary(
+                unit.value_type(args[1]),
+                args[0],
+                args[1],
+                LLHD_EFFECT_FIELD_ST,
+                unit,
+            )),
+            _ => None,
+        },
+        InstData::Ternary { args, .. } => match opcode {
+            Opcode::Drv => Some(effect_ternary(
+                unit.value_type(args[0]),
+                args[0],
+                args[1],
+                args[2],
+                LLHD_EFFECT_FIELD_DRV,
+                unit,
+            )),
+            _ => None,
+        },
+        InstData::Quaternary { args, .. } => match opcode {
+            Opcode::DrvCond => Some(effect_quaternary(
+                unit.value_type(args[0]),
+                args[0],
+                args[1],
+                args[2],
+                args[3],
+                LLHD_EFFECT_FIELD_DRVCOND,
+                unit,
+            )),
+            _ => None,
+        },
+        InstData::Call {
+            unit: ext_unit,
+            ins,
+            args,
+            ..
+        } => match opcode {
+            Opcode::Call => Some(effect_call(
+                unit.inst_type(inst),
+                *ext_unit,
+                *ins,
+                args,
+                LLHD_EFFECT_FIELD_CALL,
+                unit,
+            )),
+            Opcode::Inst => Some(effect_call(
+                unit.inst_type(inst),
+                *ext_unit,
+                *ins,
+                args,
+                LLHD_EFFECT_FIELD_INST,
+                unit,
+            )),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn effect_unary(effect_ty: Type, arg: Value, effect_field: &str, unit: &Unit<'_>) -> Expr {
+    let ty_expr = ty_expr(&effect_ty);
+    let dfg_expr = dfg_value_expr(unit, arg);
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(effect_field),
+        vec![ty_expr, dfg_expr],
+    )
+}
+
+fn effect_binary(
+    effect_ty: Type,
+    arg0: Value,
+    arg1: Value,
+    effect_field: &str,
+    unit: &Unit<'_>,
+) -> Expr {
+    let ty_expr = ty_expr(&effect_ty);
+    let dfg_expr0 = dfg_value_expr(unit, arg0);
+    let dfg_expr1 = dfg_value_expr(unit, arg1);
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(effect_field),
+        vec![ty_expr, dfg_expr0, dfg_expr1],
+    )
+}
+
+fn effect_ternary(
+    effect_ty: Type,
+    arg0: Value,
+    arg1: Value,
+    arg2: Value,
+    effect_field: &str,
+    unit: &Unit<'_>,
+) -> Expr {
+    let ty_expr = ty_expr(&effect_ty);
+    let dfg_expr0 = dfg_value_expr(unit, arg0);
+    let dfg_expr1 = dfg_value_expr(unit, arg1);
+    let dfg_expr2 = dfg_value_expr(unit, arg2);
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(effect_field),
+        vec![ty_expr, dfg_expr0, dfg_expr1, dfg_expr2],
+    )
+}
+
+fn effect_quaternary(
+    effect_ty: Type,
+    arg0: Value,
+    arg1: Value,
+    arg2: Value,
+    arg3: Value,
+    effect_field: &str,
+    unit: &Unit<'_>,
+) -> Expr {
+    let ty_expr = ty_expr(&effect_ty);
+    let dfg_expr0 = dfg_value_expr(unit, arg0);
+    let dfg_expr1 = dfg_value_expr(unit, arg1);
+    let dfg_expr2 = dfg_value_expr(unit, arg2);
+    let dfg_expr3 = dfg_value_expr(unit, arg3);
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(effect_field),
+        vec![ty_expr, dfg_expr0, dfg_expr1, dfg_expr2, dfg_expr3],
+    )
+}
+
+fn effect_call(
+    effect_ty: Type,
+    ext_unit: ExtUnit,
+    ins: u16,
+    args: &[Value],
+    effect_field: &str,
+    unit: &Unit<'_>,
+) -> Expr {
+    let ty_expr = ty_expr(&effect_ty);
+    let ext_expr = ext_unit_expr(ext_unit);
+    let ins_expr = Expr::Lit(DUMMY_SPAN.clone(), Literal::Int(i64::from(ins)));
+    let args_expr = vec_value_expr(unit, args.iter().copied());
+    GenericExpr::Call(
+        DUMMY_SPAN.clone(),
+        Symbol::new(effect_field),
+        vec![ty_expr, ext_expr, ins_expr, args_expr],
+    )
+}
+
+fn terminator_expr(unit: &Unit<'_>, _inst: Inst, inst_data: &InstData) -> Expr {
+    match inst_data {
+        InstData::Jump {
+            opcode: Opcode::Br,
+            bbs,
+        } => GenericExpr::Call(
+            DUMMY_SPAN.clone(),
+            Symbol::new(LLHD_TERM_FIELD_BR),
+            vec![block_expr(bbs[0])],
+        ),
+        InstData::Branch {
+            opcode: Opcode::BrCond,
+            args,
+            bbs,
+        } => {
+            let cond_ty = ty_expr(&unit.value_type(args[0]));
+            let cond_expr = dfg_value_expr(unit, args[0]);
+            GenericExpr::Call(
+                DUMMY_SPAN.clone(),
+                Symbol::new(LLHD_TERM_FIELD_BRCOND),
+                vec![cond_ty, cond_expr, block_expr(bbs[0]), block_expr(bbs[1])],
+            )
+        }
+        InstData::Wait { opcode, bbs, args } => {
+            let values_expr = vec_value_expr(unit, args.iter().copied());
+            let term_symbol = if *opcode == Opcode::WaitTime {
+                LLHD_TERM_FIELD_WAITTIME
+            } else {
+                LLHD_TERM_FIELD_WAIT
+            };
+            GenericExpr::Call(
+                DUMMY_SPAN.clone(),
+                Symbol::new(term_symbol),
+                vec![block_expr(bbs[0]), values_expr],
+            )
+        }
+        InstData::Nullary {
+            opcode: Opcode::Halt,
+        } => GenericExpr::Call(
+            DUMMY_SPAN.clone(),
+            Symbol::new(LLHD_TERM_FIELD_HALT),
+            vec![],
+        ),
+        InstData::Nullary {
+            opcode: Opcode::Ret,
+        } => GenericExpr::Call(DUMMY_SPAN.clone(), Symbol::new(LLHD_TERM_FIELD_RET), vec![]),
+        InstData::Unary {
+            opcode: Opcode::RetValue,
+            args,
+        } => {
+            let value_ty = ty_expr(&unit.value_type(args[0]));
+            let value_expr = dfg_value_expr(unit, args[0]);
+            GenericExpr::Call(
+                DUMMY_SPAN.clone(),
+                Symbol::new(LLHD_TERM_FIELD_RETVALUE),
+                vec![value_ty, value_expr],
+            )
+        }
+        _ => panic!("Unsupported terminator for CFG skeleton."),
+    }
 }
 
 fn process_expr(expr: &Expr, expr_fifo: &mut ExprWithIDFIFO) {
@@ -359,8 +686,11 @@ pub(crate) fn expr_to_unit_info(unit_expr: Expr) -> (UnitKind, UnitName, Signatu
             default_unit_info.2,
         ),
         GenericExpr::Call(_, symbol, info_exprs) => {
-            if symbol == Symbol::new(LLHD_UNIT_FIELD) {
-                if 5 < info_exprs.len() {
+            if symbol == Symbol::new(LLHD_UNIT_FIELD)
+                || symbol == Symbol::new(LLHD_UNIT_WITH_CFG_FIELD)
+                || symbol == Symbol::new(LLHD_UNIT_DECL_FIELD)
+            {
+                if info_exprs.len() >= 5 {
                     if let GenericExpr::Call(_, unit_sort_name, unit_kind_func) = &info_exprs[1] {
                         if *unit_sort_name == Symbol::new(LLHD_UNIT_KIND_DATATYPE) {
                             if let GenericExpr::Var(_, unit_kind_symbol) = &unit_kind_func[0] {
@@ -445,6 +775,10 @@ pub(crate) fn expr_to_unit_data(
 
     if let GenericExpr::Call(_, symbol, ref unit_info_and_data_exprs) = unit_expr {
         if symbol == Symbol::new(LLHD_UNIT_FIELD) && unit_info_and_data_exprs.len() == 6 {
+            process_expr(&unit_info_and_data_exprs[5], &mut expr_fifo);
+        } else if symbol == Symbol::new(LLHD_UNIT_WITH_CFG_FIELD)
+            && unit_info_and_data_exprs.len() == 7
+        {
             process_expr(&unit_info_and_data_exprs[5], &mut expr_fifo);
         }
     }
@@ -1052,7 +1386,7 @@ fn unit_def() -> Command {
     }
 }
 
-pub(in crate::llhd_egraph) fn unit_types() -> EgglogCommandList {
+fn unit_basic_types() -> EgglogCommandList {
     let mut llhd_types = vec![type_sort(), vec_ty_sort()];
     llhd_types.extend(type_functions());
     llhd_types.extend([
@@ -1062,17 +1396,26 @@ pub(in crate::llhd_egraph) fn unit_types() -> EgglogCommandList {
         block(),
         vec_block(),
         ext_unit(),
+        time_value(),
+        reg_mode(),
+        vec_regmode_sort(),
+    ]);
+    llhd_types
+}
+
+pub(in crate::llhd_egraph) fn unit_cfg_types() -> EgglogCommandList {
+    vec![
         terminator(),
         effect(),
         vec_effect(),
         block_skeleton(),
         vec_block_skeleton(),
         cfg_skeleton(),
-        time_value(),
-        reg_mode(),
-        vec_regmode_sort(),
-    ]);
-    llhd_types
+    ]
+}
+
+pub(in crate::llhd_egraph) fn unit_types() -> EgglogCommandList {
+    unit_basic_types()
 }
 
 pub(in crate::llhd_egraph) fn dfg() -> EgglogCommandList {

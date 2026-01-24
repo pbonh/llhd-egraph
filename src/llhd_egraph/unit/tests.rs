@@ -10,6 +10,10 @@ use super::*;
 use crate::llhd::module::LLHDModule;
 use crate::llhd::LLHDModuleTester;
 use crate::llhd_egraph::datatype::LLHDEgglogSorts;
+use crate::llhd_egraph::egglog_names::{
+    LLHD_CFG_SKELETON_FIELD, LLHD_UNIT_FIELD, LLHD_UNIT_WITH_CFG_FIELD,
+};
+use egglog_program::egraph::egglog_names::EGGLOG_VEC_OF_OP;
 
 #[test]
 fn build_egglog_program_from_unit() {
@@ -670,4 +674,119 @@ fn llhd_egglog_unit_with_cfg_datatype() {
                 (LLHDUnitDecl i64 LLHDUnitKind String LLHDVecValue LLHDVecValue))
         "});
     assert_eq!(expected_str, unit_datatype.to_string());
+}
+
+fn build_cfg_test_module() -> Module {
+    utilities::build_llhd_module(indoc::indoc! {"
+        entity @acc_tb () -> () {
+          %zero = const i1 0
+          %sig = sig i1 %zero
+        }
+        proc @acc_tb_initial (i1$ %sig) -> () {
+          entry:
+            %zero = const i1 0
+            %delay = const time 1ns
+            drv i1$ %sig, %zero after %delay
+            call void @acc_tb_check (i1 %zero)
+            wait %exit for %delay
+          exit:
+            halt
+        }
+        func @acc_tb_check (i1 %x) void {
+          entry:
+            ret
+        }
+    "})
+}
+
+#[test]
+fn llhd_cfg_skeleton_facts_for_non_entity_units() {
+    let module = build_cfg_test_module();
+    let egglog_facts = LLHDEgglogFacts::from_module(&module);
+    let mut saw_entity = false;
+    let mut saw_proc = false;
+    let mut saw_func = false;
+    let mut saw_wait = false;
+    let mut saw_drv = false;
+    let mut saw_call = false;
+
+    for cmd in egglog_facts.0.iter() {
+        if let GenericCommand::Action(GenericAction::Let(_, unit_symbol, unit_expr)) = cmd {
+            let unit_symbol_str = unit_symbol.to_string();
+            if unit_symbol_str == "unit_acc_tb" {
+                if let GenericExpr::Call(_, symbol, _) = unit_expr {
+                    assert_eq!(LLHD_UNIT_FIELD, symbol.to_string());
+                } else {
+                    panic!("Entity unit should be an LLHDUnit call expression.");
+                }
+                saw_entity = true;
+                continue;
+            }
+
+            if unit_symbol_str == "unit_acc_tb_initial" || unit_symbol_str == "unit_acc_tb_check" {
+                if let GenericExpr::Call(_, symbol, args) = unit_expr {
+                    assert_eq!(LLHD_UNIT_WITH_CFG_FIELD, symbol.to_string());
+                    let cfg_expr = args
+                        .last()
+                        .expect("LLHDUnitWithCFG should include a CFG skeleton.");
+                    if let GenericExpr::Call(_, cfg_symbol, cfg_args) = cfg_expr {
+                        assert_eq!(LLHD_CFG_SKELETON_FIELD, cfg_symbol.to_string());
+                        if let Some(GenericExpr::Call(_, vec_symbol, block_exprs)) =
+                            cfg_args.first()
+                        {
+                            assert_eq!(EGGLOG_VEC_OF_OP, vec_symbol.to_string());
+                            assert!(
+                                !block_exprs.is_empty(),
+                                "CFG skeleton should include blocks."
+                            );
+                        } else {
+                            panic!("CFG skeleton should include a vec-of block skeletons.");
+                        }
+                    } else {
+                        panic!("CFG skeleton should be a CFGSkeleton call.");
+                    }
+
+                    let unit_expr_str = unit_expr.to_string();
+                    if unit_expr_str.contains("TermWait") || unit_expr_str.contains("TermWaitTime")
+                    {
+                        saw_wait = true;
+                    }
+                    if unit_expr_str.contains("EffectDrv") {
+                        saw_drv = true;
+                    }
+                    if unit_expr_str.contains("EffectCall") {
+                        saw_call = true;
+                    }
+                } else {
+                    panic!("Unit should be represented as a call expression.");
+                }
+
+                if unit_symbol_str == "unit_acc_tb_initial" {
+                    saw_proc = true;
+                } else {
+                    saw_func = true;
+                }
+            }
+        }
+    }
+
+    assert!(saw_entity, "Expected entity unit facts for acc_tb.");
+    assert!(saw_proc, "Expected process unit facts for acc_tb_initial.");
+    assert!(saw_func, "Expected function unit facts for acc_tb_check.");
+    assert!(saw_wait, "Expected wait terminator in CFG skeleton.");
+    assert!(saw_drv, "Expected drv effect in CFG skeleton.");
+    assert!(saw_call, "Expected call effect in CFG skeleton.");
+}
+
+#[test]
+fn llhd_egglog_program_accepts_cfg_units() {
+    let module = LLHDModule::from(build_cfg_test_module());
+    let egglog_program: EgglogProgram = module.into();
+    let mut egraph = EGraph::default();
+    let egraph_msgs = egraph.run_program(egglog_program.into());
+    assert!(
+        egraph_msgs.is_ok(),
+        "EGraph failed to load CFG skeleton facts. Error: {:?}",
+        egraph_msgs.err()
+    );
 }
