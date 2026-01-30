@@ -13,7 +13,6 @@ use llhd::{IntValue, TimeValue, Type, TypeKind};
 use rayon::iter::ParallelIterator;
 
 use crate::llhd::LLHDUtils;
-use crate::llhd_egraph::datatype::unit_root_variant_symbol;
 use crate::llhd_egraph::egglog_names::*;
 use crate::llhd_egraph::inst::opcode;
 use crate::llhd_egraph::inst::*;
@@ -59,6 +58,7 @@ type TimeValueStack = VecDeque<TimeValue>;
 type LLHDTypeFIFO = VecDeque<Type>;
 
 const UNIT_LET_STMT_PREFIX: &str = "unit_";
+const EGGLOG_VEC_EMPTY_OP: &str = "vec-empty";
 
 pub(crate) fn unit_symbol(unit: Unit<'_>) -> Symbol {
     let mut unit_name = unit.name().to_string().replace(&['@', '%', ','][..], "");
@@ -113,7 +113,35 @@ fn from_unit(unit: &Unit<'_>) -> Action {
         unit_output_args_expr,
     );
 
-    let root_inst_ids = LLHDUtils::root_unit_inst(unit);
+    let root_inst_ids = if unit.output_args().next().is_some() {
+        LLHDUtils::root_unit_inst(unit).into_iter().collect_vec()
+    } else {
+        LLHDUtils::iterate_unit_insts(unit)
+            .filter(|(_unit_id, inst_id)| {
+                matches!(
+                    unit[*inst_id],
+                    InstData::Binary { .. }
+                        | InstData::Unary { .. }
+                        | InstData::ConstInt { .. }
+                        | InstData::ConstTime { .. }
+                        | InstData::Ternary { .. }
+                )
+            })
+            .filter(|(_unit_id, inst_id)| {
+                !matches!(
+                    unit[*inst_id].opcode(),
+                    Opcode::Sig
+                        | Opcode::Var
+                        | Opcode::Ld
+                        | Opcode::St
+                        | Opcode::Drv
+                        | Opcode::DrvCond
+                        | Opcode::Call
+                        | Opcode::Inst
+                )
+            })
+            .collect_vec()
+    };
     let mut root_inst_exprs: Vec<Expr> = Default::default();
     for (_unit_id, root_inst_id) in root_inst_ids.iter().rev() {
         let mut root_inst_ty = Arc::<TypeKind>::new(TypeKind::VoidType);
@@ -137,11 +165,7 @@ fn from_unit(unit: &Unit<'_>) -> Action {
         Symbol::new(EGGLOG_VEC_OF_OP),
         root_inst_exprs,
     );
-    let unit_expr_variant = if unit_kind == UnitKind::Entity {
-        unit_root_variant_symbol()
-    } else {
-        Symbol::new(LLHD_UNIT_WITH_CFG_FIELD)
-    };
+    let unit_expr_variant = Symbol::new(LLHD_UNIT_WITH_CFG_FIELD);
     let mut unit_expr_vec = vec![
         unit_id_expr,
         unit_kind_expr,
@@ -150,9 +174,7 @@ fn from_unit(unit: &Unit<'_>) -> Action {
         unit_output_sig_expr,
         unit_ctx_expr,
     ];
-    if unit_kind != UnitKind::Entity {
-        unit_expr_vec.push(cfg_skeleton_expr(unit));
-    }
+    unit_expr_vec.push(cfg_skeleton_expr(unit));
 
     let unit_expr = GenericExpr::Call(DUMMY_SPAN.clone(), unit_expr_variant, unit_expr_vec);
     Action::Let(DUMMY_SPAN.clone(), unit_symbol(*unit), unit_expr)
@@ -495,6 +517,51 @@ fn ty_from_expr(expr: &Expr) -> Type {
     type_expr_fifo.pop_back().expect("Missing type expression.")
 }
 
+fn vec_expr_items(expr: &Expr, context: &str) -> Vec<Expr> {
+    if let GenericExpr::Call(_, symbol, items) = expr {
+        if *symbol == Symbol::new(EGGLOG_VEC_OF_OP) {
+            return items.clone();
+        }
+        if *symbol == Symbol::new(EGGLOG_VEC_EMPTY_OP) {
+            return Vec::new();
+        }
+    }
+    panic!(
+        "{} should be a vec-of or vec-empty expression: {:?}",
+        context, expr
+    );
+}
+
+fn expr_contains_call_symbol(expr: &Expr, symbol: &Symbol) -> bool {
+    match expr {
+        GenericExpr::Call(_, call_symbol, args) => {
+            if call_symbol == symbol {
+                return true;
+            }
+            args.iter()
+                .any(|arg| expr_contains_call_symbol(arg, symbol))
+        }
+        _ => false,
+    }
+}
+
+fn find_first_call<'a>(expr: &'a Expr, symbol: &Symbol) -> Option<&'a Expr> {
+    match expr {
+        GenericExpr::Call(_, call_symbol, args) => {
+            if call_symbol == symbol {
+                return Some(expr);
+            }
+            for arg in args {
+                if let Some(found) = find_first_call(arg, symbol) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 fn value_id_from_expr(expr: &Expr) -> usize {
     if let GenericExpr::Call(_, symbol, args) = expr {
         if *symbol == Symbol::new(LLHD_VALUE_FIELD) {
@@ -508,21 +575,14 @@ fn value_id_from_expr(expr: &Expr) -> usize {
 }
 
 fn vec_value_ids_from_expr(expr: &Expr) -> Vec<usize> {
-    if let GenericExpr::Call(_, symbol, values) = expr {
-        if *symbol == Symbol::new(EGGLOG_VEC_OF_OP) {
-            return values.iter().map(value_id_from_expr).collect_vec();
-        }
-    }
-    panic!("Invalid LLHDVecValue expression: {:?}", expr);
+    vec_expr_items(expr, "Invalid LLHDVecValue expression")
+        .iter()
+        .map(value_id_from_expr)
+        .collect_vec()
 }
 
 fn vec_dfg_exprs_from_expr(expr: &Expr) -> Vec<Expr> {
-    if let GenericExpr::Call(_, symbol, values) = expr {
-        if *symbol == Symbol::new(EGGLOG_VEC_OF_OP) {
-            return values.clone();
-        }
-    }
-    panic!("Invalid LLHDVecDFG expression: {:?}", expr);
+    vec_expr_items(expr, "Invalid LLHDVecDFG expression")
 }
 
 fn block_id_from_expr(expr: &Expr) -> usize {
@@ -548,6 +608,9 @@ fn collect_dfg_nodes(expr: &Expr, dfg_inst_map: &mut HashMap<String, Vec<Inst>>)
             for child in children {
                 collect_dfg_nodes(child, dfg_inst_map);
             }
+            return;
+        }
+        if *symbol == Symbol::new(EGGLOG_VEC_EMPTY_OP) {
             return;
         }
         if *symbol == Symbol::new(LLHD_VALUE_REF_FIELD) {
@@ -782,16 +845,21 @@ fn dfg_expr_to_value(
     }
 }
 
-fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, arg_count: usize) {
+fn cfg_skeleton_to_unit_data(
+    unit_builder: &mut UnitBuilder,
+    cfg_expr: &Expr,
+    dfg_ctx_expr: Option<&Expr>,
+    arg_count: usize,
+) {
     let block_skeletons = if let GenericExpr::Call(_, symbol, args) = cfg_expr {
         if *symbol != Symbol::new(LLHD_CFG_SKELETON_FIELD) {
             panic!("Invalid CFG skeleton expr: {:?}", cfg_expr);
         }
-        if let Some(GenericExpr::Call(_, vec_symbol, block_exprs)) = args.first() {
-            if *vec_symbol != Symbol::new(EGGLOG_VEC_OF_OP) {
-                panic!("CFG skeleton should contain vec-of block skeletons.");
-            }
-            block_exprs.clone()
+        if let Some(block_list_expr) = args.first() {
+            vec_expr_items(
+                block_list_expr,
+                "CFG skeleton should contain block skeletons",
+            )
         } else {
             panic!("CFG skeleton missing block list.");
         }
@@ -809,6 +877,11 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
             let block = unit_builder.block();
             block_map.insert(block_id, block);
         }
+    }
+
+    if let Some((&first_block_id, &first_block)) = block_map.iter().next() {
+        let _ = first_block_id;
+        unit_builder.append_to(first_block);
     }
 
     let mut dfg_inst_map: HashMap<String, Vec<Inst>> = Default::default();
@@ -830,6 +903,36 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
         value_cache.insert(idx, value);
     }
 
+    if let Some(dfg_ctx_expr) = dfg_ctx_expr {
+        let dfg_exprs = vec_expr_items(dfg_ctx_expr, "Unit DFG context");
+        for dfg_expr in dfg_exprs {
+            if let GenericExpr::Call(_, symbol, _) = &dfg_expr {
+                if let Some(opcode) = opcode::get_symbol_opcode(symbol) {
+                    if matches!(
+                        opcode,
+                        Opcode::Sig
+                            | Opcode::Var
+                            | Opcode::Ld
+                            | Opcode::St
+                            | Opcode::Drv
+                            | Opcode::DrvCond
+                            | Opcode::Call
+                            | Opcode::Inst
+                    ) {
+                        continue;
+                    }
+                }
+            }
+            let _ = dfg_expr_to_value(
+                &dfg_expr,
+                unit_builder,
+                &mut inst_cache,
+                &mut value_cache,
+                arg_count,
+            );
+        }
+    }
+
     for block_skeleton in block_skeletons.iter() {
         let (block_id, effects_expr, terminator_expr) =
             if let GenericExpr::Call(_, symbol, args) = block_skeleton {
@@ -846,13 +949,11 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
             .unwrap_or_else(|| panic!("Missing block mapping for {block_id}"));
         unit_builder.append_to(block);
 
-        if let GenericExpr::Call(_, vec_symbol, effects) = effects_expr {
-            if *vec_symbol != Symbol::new(EGGLOG_VEC_OF_OP) {
-                panic!("Effects should be a vec-of expression.");
-            }
+        if let GenericExpr::Call(_, _, _) = effects_expr {
+            let effects = vec_expr_items(effects_expr, "Effects should be a vec expression");
             for effect in effects {
-                if let GenericExpr::Call(_, effect_symbol, effect_args) = effect {
-                    if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_SIG) {
+                if let GenericExpr::Call(_, effect_symbol, ref effect_args) = effect {
+                    if effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_SIG) {
                         let arg = dfg_expr_to_value(
                             &effect_args[1],
                             unit_builder,
@@ -871,7 +972,7 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                                 value_cache.insert(inst_id.index() + arg_count, value);
                             }
                         }
-                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_VAR) {
+                    } else if effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_VAR) {
                         let arg = dfg_expr_to_value(
                             &effect_args[1],
                             unit_builder,
@@ -890,7 +991,7 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                                 value_cache.insert(inst_id.index() + arg_count, value);
                             }
                         }
-                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_LD) {
+                    } else if effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_LD) {
                         let arg = dfg_expr_to_value(
                             &effect_args[1],
                             unit_builder,
@@ -909,7 +1010,7 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                                 value_cache.insert(inst_id.index() + arg_count, value);
                             }
                         }
-                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_ST) {
+                    } else if effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_ST) {
                         let arg0 = dfg_expr_to_value(
                             &effect_args[1],
                             unit_builder,
@@ -925,7 +1026,7 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                             arg_count,
                         );
                         let _ = unit_builder.ins().st(arg0, arg1);
-                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_DRV) {
+                    } else if effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_DRV) {
                         let arg0 = dfg_expr_to_value(
                             &effect_args[1],
                             unit_builder,
@@ -947,8 +1048,20 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                             &mut value_cache,
                             arg_count,
                         );
-                        let _ = unit_builder.ins().drv(arg0, arg1, arg2);
-                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_DRVCOND) {
+                        let inst = unit_builder.ins().drv(arg0, arg1, arg2);
+                        let signature = dfg_signature_without_type(
+                            &opcode::opcode_symbol(Opcode::Drv),
+                            &effect_args[1..],
+                        );
+                        if let Some(inst_ids) = dfg_inst_map.get_mut(&signature) {
+                            if let Some(inst_id) = inst_ids.pop() {
+                                if let Some(value) = unit_builder.get_inst_result(inst) {
+                                    inst_cache.insert(inst_id, value);
+                                    value_cache.insert(inst_id.index() + arg_count, value);
+                                }
+                            }
+                        }
+                    } else if effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_DRVCOND) {
                         let arg0 = dfg_expr_to_value(
                             &effect_args[1],
                             unit_builder,
@@ -977,9 +1090,21 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                             &mut value_cache,
                             arg_count,
                         );
-                        let _ = unit_builder.ins().drv_cond(arg0, arg1, arg2, arg3);
-                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_CALL)
-                        || *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_INST)
+                        let inst = unit_builder.ins().drv_cond(arg0, arg1, arg2, arg3);
+                        let signature = dfg_signature_without_type(
+                            &opcode::opcode_symbol(Opcode::DrvCond),
+                            &effect_args[1..],
+                        );
+                        if let Some(inst_ids) = dfg_inst_map.get_mut(&signature) {
+                            if let Some(inst_id) = inst_ids.pop() {
+                                if let Some(value) = unit_builder.get_inst_result(inst) {
+                                    inst_cache.insert(inst_id, value);
+                                    value_cache.insert(inst_id.index() + arg_count, value);
+                                }
+                            }
+                        }
+                    } else if effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_CALL)
+                        || effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_INST)
                     {
                         let effect_ty = ty_from_expr(&effect_args[0]);
                         let ext_unit_id = if let GenericExpr::Call(_, _, ext_args) = &effect_args[1]
@@ -1016,7 +1141,7 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                             for value in args.iter().take(ins as usize) {
                                 sig.add_input(unit_builder.value_type(*value));
                             }
-                            if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_INST) {
+                            if effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_INST) {
                                 for value in args.iter().skip(ins as usize) {
                                     sig.add_output(unit_builder.value_type(*value));
                                 }
@@ -1025,8 +1150,8 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                             }
                             unit_builder.add_extern(UnitName::anonymous(ext_unit_id as u32), sig)
                         });
-                        if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_CALL) {
-                            let _ = unit_builder.build_inst(
+                        if effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_CALL) {
+                            let inst = unit_builder.build_inst(
                                 InstData::Call {
                                     opcode: Opcode::Call,
                                     unit: ext_unit,
@@ -1035,8 +1160,20 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                                 },
                                 effect_ty,
                             );
+                            let signature = dfg_signature_without_type(
+                                &opcode::opcode_symbol(Opcode::Call),
+                                &effect_args[1..],
+                            );
+                            if let Some(inst_ids) = dfg_inst_map.get_mut(&signature) {
+                                if let Some(inst_id) = inst_ids.pop() {
+                                    if let Some(value) = unit_builder.get_inst_result(inst) {
+                                        inst_cache.insert(inst_id, value);
+                                        value_cache.insert(inst_id.index() + arg_count, value);
+                                    }
+                                }
+                            }
                         } else {
-                            let _ = unit_builder.build_inst(
+                            let inst = unit_builder.build_inst(
                                 InstData::Call {
                                     opcode: Opcode::Inst,
                                     unit: ext_unit,
@@ -1045,6 +1182,18 @@ fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, ar
                                 },
                                 effect_ty,
                             );
+                            let signature = dfg_signature_without_type(
+                                &opcode::opcode_symbol(Opcode::Inst),
+                                &effect_args[1..],
+                            );
+                            if let Some(inst_ids) = dfg_inst_map.get_mut(&signature) {
+                                if let Some(inst_id) = inst_ids.pop() {
+                                    if let Some(value) = unit_builder.get_inst_result(inst) {
+                                        inst_cache.insert(inst_id, value);
+                                        value_cache.insert(inst_id.index() + arg_count, value);
+                                    }
+                                }
+                            }
                         }
                     } else {
                         panic!("Unhandled effect expression: {:?}", effect);
@@ -1308,30 +1457,35 @@ fn process_arg_expr(expr: &Expr, type_expr_fifo: &mut LLHDTypeFIFO) {
 pub(crate) fn expr_to_unit_info(unit_expr: Expr) -> (UnitKind, UnitName, Signature) {
     let default_unit_info = (UnitKind::Entity, UnitName::Anonymous(0), Signature::new());
     let mut unit_info = default_unit_info.clone();
+    let unit_expr_clone = unit_expr.clone();
     match unit_expr {
-        GenericExpr::Lit(_span, literal) => match literal {
-            Literal::Int(iid) => (
-                default_unit_info.0,
-                UnitName::anonymous(
-                    iid.try_into()
-                        .expect("Failure to convert egglog Int to u32."),
+        GenericExpr::Lit(_span, literal) => {
+            unit_info = match literal {
+                Literal::Int(iid) => (
+                    default_unit_info.0,
+                    UnitName::anonymous(
+                        iid.try_into()
+                            .expect("Failure to convert egglog Int to u32."),
+                    ),
+                    default_unit_info.2,
                 ),
-                default_unit_info.2,
-            ),
-            Literal::Float(_fid) => default_unit_info,
-            Literal::String(uname) => (
+                Literal::Float(_fid) => default_unit_info,
+                Literal::String(uname) => (
+                    default_unit_info.0,
+                    UnitName::Global(uname.to_string()),
+                    default_unit_info.2,
+                ),
+                Literal::Bool(_bid) => default_unit_info,
+                Literal::Unit => default_unit_info,
+            };
+        }
+        GenericExpr::Var(_span, symbol) => {
+            unit_info = (
                 default_unit_info.0,
-                UnitName::Global(uname.to_string()),
+                UnitName::Global(symbol.to_string()),
                 default_unit_info.2,
-            ),
-            Literal::Bool(_bid) => default_unit_info,
-            Literal::Unit => default_unit_info,
-        },
-        GenericExpr::Var(_span, symbol) => (
-            default_unit_info.0,
-            UnitName::Global(symbol.to_string()),
-            default_unit_info.2,
-        ),
+            );
+        }
         GenericExpr::Call(_, symbol, info_exprs) => {
             if symbol == Symbol::new(LLHD_UNIT_FIELD)
                 || symbol == Symbol::new(LLHD_UNIT_WITH_CFG_FIELD)
@@ -1350,7 +1504,13 @@ pub(crate) fn expr_to_unit_info(unit_expr: Expr) -> (UnitKind, UnitName, Signatu
                                 {
                                     unit_info.0 = UnitKind::Process;
                                 }
-                            };
+                            }
+                        } else if *unit_sort_name == Symbol::new(LLHD_UNIT_ENTITY_FIELD) {
+                            unit_info.0 = UnitKind::Entity;
+                        } else if *unit_sort_name == Symbol::new(LLHD_UNIT_FUNCTION_FIELD) {
+                            unit_info.0 = UnitKind::Function;
+                        } else if *unit_sort_name == Symbol::new(LLHD_UNIT_PROCESS_FIELD) {
+                            unit_info.0 = UnitKind::Process;
                         }
                     };
                     if let GenericExpr::Lit(_, unit_name) = &info_exprs[2] {
@@ -1360,54 +1520,55 @@ pub(crate) fn expr_to_unit_info(unit_expr: Expr) -> (UnitKind, UnitName, Signatu
                     };
 
                     let mut input_args_expr_fifo: LLHDTypeFIFO = Default::default();
-                    if let GenericExpr::Call(_, vec_of_sort_symbol, vec_args) = &info_exprs[3] {
-                        if *vec_of_sort_symbol == Symbol::new(EGGLOG_VEC_OF_OP) {
-                            for vec_arg in vec_args {
-                                if let GenericExpr::Call(_, value_decl_symbol, arg_info) = vec_arg {
-                                    if *value_decl_symbol == Symbol::new(LLHD_VALUE_FIELD) {
-                                        if 2 == arg_info.len() {
-                                            process_arg_expr(
-                                                &arg_info[0],
-                                                &mut input_args_expr_fifo,
-                                            );
-                                        }
-                                    }
+                    let vec_args = vec_expr_items(&info_exprs[3], "Unit input args");
+                    for vec_arg in vec_args {
+                        if let GenericExpr::Call(_, value_decl_symbol, arg_info) = vec_arg {
+                            if value_decl_symbol == Symbol::new(LLHD_VALUE_FIELD) {
+                                if 2 == arg_info.len() {
+                                    process_arg_expr(&arg_info[0], &mut input_args_expr_fifo);
                                 }
                             }
                         }
-                    };
+                    }
                     let mut output_args_expr_fifo: LLHDTypeFIFO = Default::default();
-                    if let GenericExpr::Call(_, vec_of_sort_symbol, vec_args) = &info_exprs[4] {
-                        if *vec_of_sort_symbol == Symbol::new(EGGLOG_VEC_OF_OP) {
-                            for vec_arg in vec_args {
-                                if let GenericExpr::Call(_, value_decl_symbol, arg_info) = vec_arg {
-                                    if *value_decl_symbol == Symbol::new(LLHD_VALUE_FIELD) {
-                                        if 2 == arg_info.len() {
-                                            process_arg_expr(
-                                                &arg_info[0],
-                                                &mut output_args_expr_fifo,
-                                            );
-                                        }
-                                    }
+                    let vec_args = vec_expr_items(&info_exprs[4], "Unit output args");
+                    for vec_arg in vec_args {
+                        if let GenericExpr::Call(_, value_decl_symbol, arg_info) = vec_arg {
+                            if value_decl_symbol == Symbol::new(LLHD_VALUE_FIELD) {
+                                if 2 == arg_info.len() {
+                                    process_arg_expr(&arg_info[0], &mut output_args_expr_fifo);
                                 }
                             }
                         }
-                    };
+                    }
                     for unit_arg_expr in input_args_expr_fifo {
                         unit_info.2.add_input(unit_arg_expr);
                     }
-                    for unit_arg_expr in output_args_expr_fifo {
-                        unit_info.2.add_output(unit_arg_expr);
+                    if unit_info.0 != UnitKind::Function {
+                        for unit_arg_expr in output_args_expr_fifo {
+                            unit_info.2.add_output(unit_arg_expr);
+                        }
                     }
-                    unit_info
-                } else {
-                    default_unit_info
                 }
-            } else {
-                default_unit_info
             }
         }
     }
+
+    if unit_info.0 == UnitKind::Function {
+        if let Some(ret_expr) =
+            find_first_call(&unit_expr_clone, &Symbol::new(LLHD_TERM_FIELD_RETVALUE))
+        {
+            if let GenericExpr::Call(_, _, ret_args) = ret_expr {
+                if let Some(ret_ty_expr) = ret_args.first() {
+                    unit_info.2.set_return_type(ty_from_expr(ret_ty_expr));
+                }
+            }
+        } else if expr_contains_call_symbol(&unit_expr_clone, &Symbol::new(LLHD_TERM_FIELD_RET)) {
+            unit_info.2.set_return_type(llhd::void_ty());
+        }
+    }
+
+    unit_info
 }
 
 pub(crate) fn expr_to_unit_data(
@@ -1420,6 +1581,7 @@ pub(crate) fn expr_to_unit_data(
     let mut unit_builder = UnitBuilder::new_anonymous(&mut unit_data);
     let mut expr_fifo: ExprWithIDFIFO = Default::default();
     let mut cfg_expr: Option<Expr> = None;
+    let mut dfg_ctx_expr: Option<Expr> = None;
 
     if let GenericExpr::Call(_, symbol, ref unit_info_and_data_exprs) = unit_expr {
         if symbol == Symbol::new(LLHD_UNIT_FIELD) && unit_info_and_data_exprs.len() == 6 {
@@ -1427,6 +1589,7 @@ pub(crate) fn expr_to_unit_data(
         } else if symbol == Symbol::new(LLHD_UNIT_WITH_CFG_FIELD)
             && unit_info_and_data_exprs.len() == 7
         {
+            dfg_ctx_expr = Some(unit_info_and_data_exprs[5].clone());
             cfg_expr = Some(unit_info_and_data_exprs[6].clone());
         }
     }
@@ -1436,8 +1599,17 @@ pub(crate) fn expr_to_unit_data(
     let mut time_value_stack: TimeValueStack = Default::default();
 
     if let Some(cfg_expr) = cfg_expr {
+        if unit_kind == UnitKind::Entity {
+            let entry = unit_builder.entry();
+            unit_builder.delete_block(entry);
+        }
         let arg_count = unit_builder.sig().args().count();
-        cfg_skeleton_to_unit_data(&mut unit_builder, &cfg_expr, arg_count);
+        cfg_skeleton_to_unit_data(
+            &mut unit_builder,
+            &cfg_expr,
+            dfg_ctx_expr.as_ref(),
+            arg_count,
+        );
     } else {
         process_expr_fifo(
             expr_fifo,
@@ -2059,6 +2231,7 @@ fn unit_basic_types() -> EgglogCommandList {
 pub(in crate::llhd_egraph) fn unit_cfg_types() -> EgglogCommandList {
     vec![
         terminator(),
+        unit_ctx(),
         effect(),
         vec_effect(),
         block_skeleton(),
@@ -2072,7 +2245,7 @@ pub(in crate::llhd_egraph) fn unit_types() -> EgglogCommandList {
 }
 
 pub(in crate::llhd_egraph) fn dfg() -> EgglogCommandList {
-    vec![unit_ctx(), unit_def()]
+    vec![unit_def()]
 }
 
 #[cfg(test)]

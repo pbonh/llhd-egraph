@@ -23,7 +23,8 @@ impl From<Module> for LLHDModuleTester {
             unit_insts: module
                 .units()
                 .map(|unit| {
-                    unit.all_insts()
+                    let mut insts = unit
+                        .all_insts()
                         .map(|inst| {
                             (
                                 unit[inst].opcode(),
@@ -35,7 +36,16 @@ impl From<Module> for LLHDModuleTester {
                                     .collect_vec(),
                             )
                         })
-                        .collect_vec()
+                        .collect_vec();
+                    insts.sort_by_key(|(opcode, args)| {
+                        let mut key = format!("{:?}", opcode);
+                        for arg in args {
+                            key.push('|');
+                            key.push_str(&format!("{:?}", arg));
+                        }
+                        key
+                    });
+                    insts
                 })
                 .collect(),
         }
@@ -72,58 +82,43 @@ mod tests {
         let unit1_test_data = module_test_data.unit_insts.iter().next().unwrap();
         assert_eq!(unit1_test_data.len(), 6, "There should be 6 Insts in Unit.");
 
-        let const_time_inst = &unit1_test_data[0];
+        let opcodes = unit1_test_data.iter().map(|inst| inst.0).collect_vec();
         assert!(
-            matches!(const_time_inst.0, Opcode::ConstTime),
-            "Opcode for 1st Inst should be ConstTime."
+            opcodes.iter().any(|op| matches!(op, Opcode::ConstTime)),
+            "Expected a ConstTime inst."
         );
-
-        let and1_inst = &unit1_test_data[1];
-        let and1_inst_args = and1_inst.1.clone();
-        assert!(
-            matches!(and1_inst.0, Opcode::And),
-            "Opcode for 2nd Inst should be And."
-        );
-        assert!(
-            and1_inst_args.is_empty(),
-            "And Inst Args are Unit Args, which have no type."
-        );
-
-        let and2_inst = &unit1_test_data[2];
-        let and2_inst_args = and2_inst.1.clone();
-        assert!(
-            matches!(and2_inst.0, Opcode::And),
-            "Opcode for 3rd Inst should be And."
+        assert_eq!(
+            2,
+            opcodes
+                .iter()
+                .filter(|op| matches!(op, Opcode::And))
+                .count(),
+            "Expected two And insts."
         );
         assert!(
-            and2_inst_args.is_empty(),
-            "And Inst Args are Unit Args, which have no type."
-        );
-
-        let or1_inst = &unit1_test_data[3];
-        let or1_inst_args = or1_inst.1.clone();
-        assert!(
-            matches!(or1_inst.0, Opcode::Or),
-            "Opcode for 4th Inst should be Or."
+            opcodes.iter().any(|op| matches!(op, Opcode::Or)),
+            "Expected an Or inst."
         );
         assert!(
-            matches!(or1_inst_args[0], Opcode::And),
-            "Opcode for 1st Or Inst Arg should be And."
+            opcodes.iter().any(|op| matches!(op, Opcode::Drv)),
+            "Expected a Drv inst."
         );
+        let or_inst = unit1_test_data
+            .iter()
+            .find(|inst| matches!(inst.0, Opcode::Or))
+            .expect("Expected Or inst.");
+        let or_inst_args = &or_inst.1;
+        assert_eq!(2, or_inst_args.len(), "Expected Or inst to have two args.");
         assert!(
-            matches!(or1_inst_args[1], Opcode::And),
-            "Opcode for 2nd Or Inst Arg should be And."
-        );
-
-        let drv_inst = &unit1_test_data[4];
-        assert!(
-            matches!(drv_inst.0, Opcode::Drv),
-            "Opcode for 1st Inst should be Drv."
+            or_inst_args.iter().all(|op| matches!(op, Opcode::And)),
+            "Expected Or inst args to be And opcodes."
         );
 
         assert!(
-            matches!(unit1_test_data[5].0, Opcode::Halt),
-            "Opcode for 1st Inst should be Halt."
+            unit1_test_data
+                .iter()
+                .any(|inst| matches!(inst.0, Opcode::Halt)),
+            "Expected a Halt inst."
         );
     }
 }

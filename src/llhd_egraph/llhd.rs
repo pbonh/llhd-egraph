@@ -205,6 +205,7 @@ impl From<EgglogProgram> for LLHDModule {
                 Ok((_unit_cost, unit_term)) => {
                     let extracted_expr =
                         extracted_termdag.term_to_expr(&unit_term, DUMMY_SPAN.clone());
+                    eprintln!("Egglog extracted unit expr for {unit_symbol}: {extracted_expr:?}");
                     let (unit_kind_extract, unit_name_extract, unit_sig_extract) =
                         expr_to_unit_info(extracted_expr.clone());
                     let unit_data = expr_to_unit_data(
