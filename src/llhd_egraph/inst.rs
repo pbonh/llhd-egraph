@@ -1,5 +1,6 @@
 use egglog::ast::{Command, Expr, GenericExpr, Literal, Symbol, Variant};
 use lazy_static::lazy_static;
+use llhd::assembly;
 use llhd::ir::prelude::*;
 use llhd::ir::{InstData, ValueData};
 use llhd::table::TableKey;
@@ -487,7 +488,7 @@ pub(in crate::llhd_egraph) fn dfg() -> EgglogCommandList {
 
 pub(in crate::llhd_egraph) fn cfg() -> EgglogCommandList {
     let _symbol = Symbol::new(LLHD_CFG_DATATYPE);
-    todo!()
+    vec![]
 }
 
 pub(in crate::llhd_egraph) fn ty_expr(llhd_ty: &Type) -> Expr {
@@ -619,6 +620,27 @@ pub(super) fn expr_int_value(literal: &Literal) -> IntValue {
             64,
             isize::try_from(*value).expect("Failure to convert from i64 to isize."),
         ),
+        Literal::String(symbol) => {
+            let mut value_str = symbol.to_string();
+            if let Some(stripped) = value_str.strip_prefix('"') {
+                value_str = stripped.trim_end_matches('"').to_string();
+            }
+            let mut parts = value_str.split_whitespace();
+            let ty_part = parts
+                .next()
+                .expect("IntValue literal should include type prefix.");
+            let value_part = parts
+                .next()
+                .expect("IntValue literal should include value.");
+            let width = ty_part
+                .strip_prefix('i')
+                .and_then(|s| s.parse::<usize>().ok())
+                .expect("Failure to parse int width from IntValue literal.");
+            let value = value_part
+                .parse::<usize>()
+                .expect("Failure to parse int value from IntValue literal.");
+            IntValue::from_usize(width, value)
+        }
         _ => panic!("Non-Int Literal"),
     }
 }
@@ -628,8 +650,18 @@ fn time_value_expr(time_value: TimeValue) -> Expr {
     GenericExpr::Lit(DUMMY_SPAN.clone(), converted_literal)
 }
 
-pub(in crate::llhd_egraph) fn expr_time_value(_literal: &Literal) -> TimeValue {
-    TimeValue::zero()
+pub(in crate::llhd_egraph) fn expr_time_value(literal: &Literal) -> TimeValue {
+    match literal {
+        Literal::String(symbol) => {
+            let mut value_str = symbol.to_string();
+            if let Some(stripped) = value_str.strip_prefix('"') {
+                value_str = stripped.trim_end_matches('"').to_string();
+            }
+            assembly::parse_time(value_str)
+                .unwrap_or_else(|err| panic!("Failure to parse TimeValue literal: {err}"))
+        }
+        _ => TimeValue::zero(),
+    }
 }
 
 pub(in crate::llhd_egraph) fn inst_expr(

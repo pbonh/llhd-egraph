@@ -627,8 +627,8 @@ fn llhd_egglog_effect_datatype() {
                 (EffectVar LLHDTy LLHDDFG)
                 (EffectLd LLHDTy LLHDDFG)
                 (EffectSt LLHDTy LLHDDFG LLHDDFG)
-                (EffectCall LLHDTy LLHDExtUnit i64 LLHDVecValue)
-                (EffectInst LLHDTy LLHDExtUnit i64 LLHDVecValue))
+                (EffectCall LLHDTy LLHDExtUnit i64 LLHDUnitDFGContext)
+                (EffectInst LLHDTy LLHDExtUnit i64 LLHDUnitDFGContext))
         "});
     assert_eq!(expected_str, effect_datatype.to_string());
 }
@@ -788,5 +788,86 @@ fn llhd_egglog_program_accepts_cfg_units() {
         egraph_msgs.is_ok(),
         "EGraph failed to load CFG skeleton facts. Error: {:?}",
         egraph_msgs.err()
+    );
+}
+
+#[test]
+fn llhd_cfg_skeleton_facts_testbench_paper() {
+    let module = utilities::load_llhd_module("testbench_paper.llhd");
+    let egglog_facts = LLHDEgglogFacts::from_module(&module);
+    let mut saw_br = false;
+    let mut saw_brcond = false;
+    let mut saw_wait = false;
+    let mut saw_halt = false;
+    let mut saw_var = false;
+    let mut saw_ld = false;
+    let mut saw_st = false;
+    let mut saw_drv = false;
+    let mut saw_call = false;
+    let mut saw_ret = false;
+
+    for cmd in egglog_facts.0.iter() {
+        if let GenericCommand::Action(GenericAction::Let(_, unit_symbol, unit_expr)) = cmd {
+            let unit_symbol_str = unit_symbol.to_string();
+            if unit_symbol_str != "unit_acc_tb_initial" && unit_symbol_str != "unit_acc_tb_check" {
+                continue;
+            }
+            let unit_expr_str = unit_expr.to_string();
+            if unit_expr_str.contains("TermBr ") {
+                saw_br = true;
+            }
+            if unit_expr_str.contains("TermBrCond") {
+                saw_brcond = true;
+            }
+            if unit_expr_str.contains("TermWaitTime") || unit_expr_str.contains("TermWait") {
+                saw_wait = true;
+            }
+            if unit_expr_str.contains("TermHalt") {
+                saw_halt = true;
+            }
+            if unit_expr_str.contains("EffectVar") {
+                saw_var = true;
+            }
+            if unit_expr_str.contains("EffectLd") {
+                saw_ld = true;
+            }
+            if unit_expr_str.contains("EffectSt") {
+                saw_st = true;
+            }
+            if unit_expr_str.contains("EffectDrv") {
+                saw_drv = true;
+            }
+            if unit_expr_str.contains("EffectCall") {
+                saw_call = true;
+            }
+            if unit_expr_str.contains("TermRet") {
+                saw_ret = true;
+            }
+        }
+    }
+
+    assert!(saw_br, "Expected br terminator in CFG skeleton.");
+    assert!(saw_brcond, "Expected brcond terminator in CFG skeleton.");
+    assert!(saw_wait, "Expected wait terminator in CFG skeleton.");
+    assert!(saw_halt, "Expected halt terminator in CFG skeleton.");
+    assert!(saw_var, "Expected var effect in CFG skeleton.");
+    assert!(saw_ld, "Expected ld effect in CFG skeleton.");
+    assert!(saw_st, "Expected st effect in CFG skeleton.");
+    assert!(saw_drv, "Expected drv effect in CFG skeleton.");
+    assert!(saw_call, "Expected call effect in CFG skeleton.");
+    assert!(saw_ret, "Expected ret terminator in CFG skeleton.");
+}
+
+#[test]
+fn llhd_cfg_skeleton_roundtrip_testbench_paper() {
+    let module = LLHDModule::from(utilities::load_llhd_module("testbench_paper.llhd"));
+    let egglog_program: EgglogProgram = module.clone().into();
+    let module_from_egglog: LLHDModule = egglog_program.into();
+
+    let original_module = LLHDModuleTester::from(module);
+    let round_trip_module = LLHDModuleTester::from(module_from_egglog);
+    assert_eq!(
+        original_module, round_trip_module,
+        "Round-trip Module does not match original."
     );
 }

@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 use egglog::ast::{
@@ -15,6 +15,7 @@ use rayon::iter::ParallelIterator;
 use crate::llhd::LLHDUtils;
 use crate::llhd_egraph::datatype::unit_root_variant_symbol;
 use crate::llhd_egraph::egglog_names::*;
+use crate::llhd_egraph::inst::opcode;
 use crate::llhd_egraph::inst::*;
 use egglog_program::egraph::egglog_names::*;
 use egglog_program::*;
@@ -237,6 +238,14 @@ fn vec_value_expr(unit: &Unit<'_>, values: impl IntoIterator<Item = Value>) -> E
     )
 }
 
+fn vec_dfg_expr(unit: &Unit<'_>, values: impl IntoIterator<Item = Value>) -> Expr {
+    let dfg_exprs = values
+        .into_iter()
+        .map(|value| dfg_value_expr(unit, value))
+        .collect_vec();
+    GenericExpr::Call(DUMMY_SPAN.clone(), Symbol::new(EGGLOG_VEC_OF_OP), dfg_exprs)
+}
+
 fn dfg_value_expr(unit: &Unit<'_>, value: Value) -> Expr {
     match &unit[value] {
         ValueData::Inst { ty, inst } => inst_expr(unit, *inst, ty.clone(), &unit[*inst]),
@@ -410,7 +419,7 @@ fn effect_call(
     let ty_expr = ty_expr(&effect_ty);
     let ext_expr = ext_unit_expr(ext_unit);
     let ins_expr = Expr::Lit(DUMMY_SPAN.clone(), Literal::Int(i64::from(ins)));
-    let args_expr = vec_value_expr(unit, args.iter().copied());
+    let args_expr = vec_dfg_expr(unit, args.iter().copied());
     GenericExpr::Call(
         DUMMY_SPAN.clone(),
         Symbol::new(effect_field),
@@ -477,6 +486,636 @@ fn terminator_expr(unit: &Unit<'_>, _inst: Inst, inst_data: &InstData) -> Expr {
             )
         }
         _ => panic!("Unsupported terminator for CFG skeleton."),
+    }
+}
+
+fn ty_from_expr(expr: &Expr) -> Type {
+    let mut type_expr_fifo: LLHDTypeFIFO = Default::default();
+    process_arg_expr(expr, &mut type_expr_fifo);
+    type_expr_fifo.pop_back().expect("Missing type expression.")
+}
+
+fn value_id_from_expr(expr: &Expr) -> usize {
+    if let GenericExpr::Call(_, symbol, args) = expr {
+        if *symbol == Symbol::new(LLHD_VALUE_FIELD) {
+            if let Some(GenericExpr::Lit(_, Literal::Int(value_id))) = args.get(1) {
+                return usize::try_from(*value_id)
+                    .expect("Failure to convert value id literal to usize.");
+            }
+        }
+    }
+    panic!("Invalid LLHDValue expression: {:?}", expr);
+}
+
+fn vec_value_ids_from_expr(expr: &Expr) -> Vec<usize> {
+    if let GenericExpr::Call(_, symbol, values) = expr {
+        if *symbol == Symbol::new(EGGLOG_VEC_OF_OP) {
+            return values.iter().map(value_id_from_expr).collect_vec();
+        }
+    }
+    panic!("Invalid LLHDVecValue expression: {:?}", expr);
+}
+
+fn vec_dfg_exprs_from_expr(expr: &Expr) -> Vec<Expr> {
+    if let GenericExpr::Call(_, symbol, values) = expr {
+        if *symbol == Symbol::new(EGGLOG_VEC_OF_OP) {
+            return values.clone();
+        }
+    }
+    panic!("Invalid LLHDVecDFG expression: {:?}", expr);
+}
+
+fn block_id_from_expr(expr: &Expr) -> usize {
+    if let GenericExpr::Call(_, symbol, args) = expr {
+        if *symbol == Symbol::new(LLHD_BLOCK_FIELD) {
+            if let Some(GenericExpr::Lit(_, Literal::Int(value_id))) = args.get(0) {
+                return usize::try_from(*value_id)
+                    .expect("Failure to convert block id literal to usize.");
+            }
+        }
+    }
+    panic!("Invalid LLHDBlock expression: {:?}", expr);
+}
+
+fn dfg_signature_without_type(opcode_symbol: &Symbol, args: &[Expr]) -> String {
+    let args_key = args.iter().map(|expr| expr.to_string()).join("|");
+    format!("{}|{}", opcode_symbol, args_key)
+}
+
+fn collect_dfg_nodes(expr: &Expr, dfg_inst_map: &mut HashMap<String, Vec<Inst>>) {
+    if let GenericExpr::Call(_, symbol, children) = expr {
+        if *symbol == Symbol::new(EGGLOG_VEC_OF_OP) {
+            for child in children {
+                collect_dfg_nodes(child, dfg_inst_map);
+            }
+            return;
+        }
+        if *symbol == Symbol::new(LLHD_VALUE_REF_FIELD) {
+            return;
+        }
+        if opcode::get_symbol_opcode(symbol).is_some() {
+            if let Some(GenericExpr::Lit(_, llhd_literal)) = children.get(0) {
+                let inst_id = literal_llhd_inst_id(llhd_literal);
+                let args = children.iter().skip(2).cloned().collect_vec();
+                let signature = dfg_signature_without_type(symbol, &args);
+                dfg_inst_map.entry(signature).or_default().push(inst_id);
+                for arg in args {
+                    collect_dfg_nodes(&arg, dfg_inst_map);
+                }
+            }
+            return;
+        }
+        for child in children {
+            collect_dfg_nodes(child, dfg_inst_map);
+        }
+    }
+}
+
+fn value_from_id(value_id: usize, value_cache: &HashMap<usize, Value>) -> Value {
+    *value_cache
+        .get(&value_id)
+        .unwrap_or_else(|| panic!("Missing value mapping for v{}", value_id))
+}
+
+fn dfg_expr_to_value(
+    expr: &Expr,
+    unit_builder: &mut UnitBuilder,
+    inst_cache: &mut HashMap<Inst, Value>,
+    value_cache: &mut HashMap<usize, Value>,
+    arg_count: usize,
+) -> Value {
+    match expr {
+        GenericExpr::Call(_, symbol, children) => {
+            if *symbol == Symbol::new(LLHD_VALUE_REF_FIELD) {
+                let value_id = value_id_from_expr(&children[0]);
+                return value_from_id(value_id, value_cache);
+            }
+            if let Some(opcode) = opcode::get_symbol_opcode(symbol) {
+                let inst_id = if let Some(GenericExpr::Lit(_, llhd_literal)) = children.get(0) {
+                    literal_llhd_inst_id(llhd_literal)
+                } else {
+                    panic!("Invalid LLHD inst id literal: {:?}", expr)
+                };
+                if let Some(value) = inst_cache.get(&inst_id) {
+                    return *value;
+                }
+                if matches!(
+                    opcode,
+                    Opcode::Sig
+                        | Opcode::Var
+                        | Opcode::Ld
+                        | Opcode::St
+                        | Opcode::Drv
+                        | Opcode::DrvCond
+                        | Opcode::Call
+                        | Opcode::Inst
+                ) {
+                    panic!("Effectful opcode {:?} missing cached value.", opcode);
+                }
+                let value = match opcode {
+                    Opcode::ConstInt => {
+                        let literal = children
+                            .get(2)
+                            .expect("ConstInt requires literal argument.");
+                        let int_value = if let GenericExpr::Lit(_, literal) = literal {
+                            expr_int_value(literal)
+                        } else {
+                            panic!("ConstInt literal should be a literal: {:?}", literal);
+                        };
+                        unit_builder.ins().const_int(int_value)
+                    }
+                    Opcode::ConstTime => {
+                        let literal = children
+                            .get(2)
+                            .expect("ConstTime requires literal argument.");
+                        let time_value = if let GenericExpr::Lit(_, literal) = literal {
+                            expr_time_value(literal)
+                        } else {
+                            panic!("ConstTime literal should be a literal: {:?}", literal);
+                        };
+                        unit_builder.ins().const_time(time_value)
+                    }
+                    Opcode::Alias => {
+                        let arg = dfg_expr_to_value(
+                            &children[2],
+                            unit_builder,
+                            inst_cache,
+                            value_cache,
+                            arg_count,
+                        );
+                        unit_builder.ins().alias(arg)
+                    }
+                    Opcode::Not => {
+                        let arg = dfg_expr_to_value(
+                            &children[2],
+                            unit_builder,
+                            inst_cache,
+                            value_cache,
+                            arg_count,
+                        );
+                        unit_builder.ins().not(arg)
+                    }
+                    Opcode::Neg => {
+                        let arg = dfg_expr_to_value(
+                            &children[2],
+                            unit_builder,
+                            inst_cache,
+                            value_cache,
+                            arg_count,
+                        );
+                        unit_builder.ins().neg(arg)
+                    }
+                    Opcode::Add
+                    | Opcode::Sub
+                    | Opcode::And
+                    | Opcode::Or
+                    | Opcode::Xor
+                    | Opcode::Smul
+                    | Opcode::Sdiv
+                    | Opcode::Smod
+                    | Opcode::Srem
+                    | Opcode::Umul
+                    | Opcode::Udiv
+                    | Opcode::Umod
+                    | Opcode::Urem
+                    | Opcode::Eq
+                    | Opcode::Neq
+                    | Opcode::Slt
+                    | Opcode::Sgt
+                    | Opcode::Sle
+                    | Opcode::Sge
+                    | Opcode::Ult
+                    | Opcode::Ugt
+                    | Opcode::Ule
+                    | Opcode::Uge
+                    | Opcode::Mux => {
+                        let arg0 = dfg_expr_to_value(
+                            &children[2],
+                            unit_builder,
+                            inst_cache,
+                            value_cache,
+                            arg_count,
+                        );
+                        let arg1 = dfg_expr_to_value(
+                            &children[3],
+                            unit_builder,
+                            inst_cache,
+                            value_cache,
+                            arg_count,
+                        );
+                        match opcode {
+                            Opcode::Add => unit_builder.ins().add(arg0, arg1),
+                            Opcode::Sub => unit_builder.ins().sub(arg0, arg1),
+                            Opcode::And => unit_builder.ins().and(arg0, arg1),
+                            Opcode::Or => unit_builder.ins().or(arg0, arg1),
+                            Opcode::Xor => unit_builder.ins().xor(arg0, arg1),
+                            Opcode::Smul => unit_builder.ins().smul(arg0, arg1),
+                            Opcode::Sdiv => unit_builder.ins().sdiv(arg0, arg1),
+                            Opcode::Smod => unit_builder.ins().smod(arg0, arg1),
+                            Opcode::Srem => unit_builder.ins().srem(arg0, arg1),
+                            Opcode::Umul => unit_builder.ins().umul(arg0, arg1),
+                            Opcode::Udiv => unit_builder.ins().udiv(arg0, arg1),
+                            Opcode::Umod => unit_builder.ins().umod(arg0, arg1),
+                            Opcode::Urem => unit_builder.ins().urem(arg0, arg1),
+                            Opcode::Eq => unit_builder.ins().eq(arg0, arg1),
+                            Opcode::Neq => unit_builder.ins().neq(arg0, arg1),
+                            Opcode::Slt => unit_builder.ins().slt(arg0, arg1),
+                            Opcode::Sgt => unit_builder.ins().sgt(arg0, arg1),
+                            Opcode::Sle => unit_builder.ins().sle(arg0, arg1),
+                            Opcode::Sge => unit_builder.ins().sge(arg0, arg1),
+                            Opcode::Ult => unit_builder.ins().ult(arg0, arg1),
+                            Opcode::Ugt => unit_builder.ins().ugt(arg0, arg1),
+                            Opcode::Ule => unit_builder.ins().ule(arg0, arg1),
+                            Opcode::Uge => unit_builder.ins().uge(arg0, arg1),
+                            Opcode::Mux => unit_builder.ins().mux(arg0, arg1),
+                            _ => unreachable!(),
+                        }
+                    }
+                    Opcode::Shl | Opcode::Shr => {
+                        let arg0 = dfg_expr_to_value(
+                            &children[2],
+                            unit_builder,
+                            inst_cache,
+                            value_cache,
+                            arg_count,
+                        );
+                        let arg1 = dfg_expr_to_value(
+                            &children[3],
+                            unit_builder,
+                            inst_cache,
+                            value_cache,
+                            arg_count,
+                        );
+                        let arg2 = dfg_expr_to_value(
+                            &children[4],
+                            unit_builder,
+                            inst_cache,
+                            value_cache,
+                            arg_count,
+                        );
+                        match opcode {
+                            Opcode::Shl => unit_builder.ins().shl(arg0, arg1, arg2),
+                            Opcode::Shr => unit_builder.ins().shr(arg0, arg1, arg2),
+                            _ => unreachable!(),
+                        }
+                    }
+                    Opcode::Prb => {
+                        let arg = dfg_expr_to_value(
+                            &children[2],
+                            unit_builder,
+                            inst_cache,
+                            value_cache,
+                            arg_count,
+                        );
+                        unit_builder.ins().prb(arg)
+                    }
+                    _ => panic!("Unhandled DFG opcode {:?}", opcode),
+                };
+                inst_cache.insert(inst_id, value);
+                let value_id = inst_id.index() + arg_count;
+                value_cache.insert(value_id, value);
+                return value;
+            }
+            panic!("Unhandled DFG expression: {:?}", expr)
+        }
+        _ => panic!("Unsupported DFG expression: {:?}", expr),
+    }
+}
+
+fn cfg_skeleton_to_unit_data(unit_builder: &mut UnitBuilder, cfg_expr: &Expr, arg_count: usize) {
+    let block_skeletons = if let GenericExpr::Call(_, symbol, args) = cfg_expr {
+        if *symbol != Symbol::new(LLHD_CFG_SKELETON_FIELD) {
+            panic!("Invalid CFG skeleton expr: {:?}", cfg_expr);
+        }
+        if let Some(GenericExpr::Call(_, vec_symbol, block_exprs)) = args.first() {
+            if *vec_symbol != Symbol::new(EGGLOG_VEC_OF_OP) {
+                panic!("CFG skeleton should contain vec-of block skeletons.");
+            }
+            block_exprs.clone()
+        } else {
+            panic!("CFG skeleton missing block list.");
+        }
+    } else {
+        panic!("Invalid CFG skeleton expr: {:?}", cfg_expr);
+    };
+
+    let mut block_map: HashMap<usize, Block> = Default::default();
+    for block_skeleton in block_skeletons.iter() {
+        if let GenericExpr::Call(_, symbol, args) = block_skeleton {
+            if *symbol != Symbol::new(LLHD_BLOCK_SKELETON_FIELD) {
+                continue;
+            }
+            let block_id = block_id_from_expr(&args[0]);
+            let block = unit_builder.block();
+            block_map.insert(block_id, block);
+        }
+    }
+
+    let mut dfg_inst_map: HashMap<String, Vec<Inst>> = Default::default();
+    for block_skeleton in block_skeletons.iter() {
+        if let GenericExpr::Call(_, symbol, args) = block_skeleton {
+            if *symbol != Symbol::new(LLHD_BLOCK_SKELETON_FIELD) {
+                continue;
+            }
+            collect_dfg_nodes(&args[2], &mut dfg_inst_map);
+            collect_dfg_nodes(&args[3], &mut dfg_inst_map);
+        }
+    }
+
+    let mut inst_cache: HashMap<Inst, Value> = Default::default();
+    let mut value_cache: HashMap<usize, Value> = Default::default();
+    let mut ext_unit_map: HashMap<usize, ExtUnit> = Default::default();
+    for (idx, arg) in unit_builder.sig().args().enumerate() {
+        let value = unit_builder.arg_value(arg);
+        value_cache.insert(idx, value);
+    }
+
+    for block_skeleton in block_skeletons.iter() {
+        let (block_id, effects_expr, terminator_expr) =
+            if let GenericExpr::Call(_, symbol, args) = block_skeleton {
+                if *symbol != Symbol::new(LLHD_BLOCK_SKELETON_FIELD) {
+                    continue;
+                }
+                (block_id_from_expr(&args[0]), &args[2], &args[3])
+            } else {
+                continue;
+            };
+
+        let block = *block_map
+            .get(&block_id)
+            .unwrap_or_else(|| panic!("Missing block mapping for {block_id}"));
+        unit_builder.append_to(block);
+
+        if let GenericExpr::Call(_, vec_symbol, effects) = effects_expr {
+            if *vec_symbol != Symbol::new(EGGLOG_VEC_OF_OP) {
+                panic!("Effects should be a vec-of expression.");
+            }
+            for effect in effects {
+                if let GenericExpr::Call(_, effect_symbol, effect_args) = effect {
+                    if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_SIG) {
+                        let arg = dfg_expr_to_value(
+                            &effect_args[1],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let value = unit_builder.ins().sig(arg);
+                        let signature = dfg_signature_without_type(
+                            &opcode::opcode_symbol(Opcode::Sig),
+                            &effect_args[1..],
+                        );
+                        if let Some(inst_ids) = dfg_inst_map.get_mut(&signature) {
+                            if let Some(inst_id) = inst_ids.pop() {
+                                inst_cache.insert(inst_id, value);
+                                value_cache.insert(inst_id.index() + arg_count, value);
+                            }
+                        }
+                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_VAR) {
+                        let arg = dfg_expr_to_value(
+                            &effect_args[1],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let value = unit_builder.ins().var(arg);
+                        let signature = dfg_signature_without_type(
+                            &opcode::opcode_symbol(Opcode::Var),
+                            &effect_args[1..],
+                        );
+                        if let Some(inst_ids) = dfg_inst_map.get_mut(&signature) {
+                            if let Some(inst_id) = inst_ids.pop() {
+                                inst_cache.insert(inst_id, value);
+                                value_cache.insert(inst_id.index() + arg_count, value);
+                            }
+                        }
+                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_LD) {
+                        let arg = dfg_expr_to_value(
+                            &effect_args[1],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let value = unit_builder.ins().ld(arg);
+                        let signature = dfg_signature_without_type(
+                            &opcode::opcode_symbol(Opcode::Ld),
+                            &effect_args[1..],
+                        );
+                        if let Some(inst_ids) = dfg_inst_map.get_mut(&signature) {
+                            if let Some(inst_id) = inst_ids.pop() {
+                                inst_cache.insert(inst_id, value);
+                                value_cache.insert(inst_id.index() + arg_count, value);
+                            }
+                        }
+                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_ST) {
+                        let arg0 = dfg_expr_to_value(
+                            &effect_args[1],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let arg1 = dfg_expr_to_value(
+                            &effect_args[2],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let _ = unit_builder.ins().st(arg0, arg1);
+                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_DRV) {
+                        let arg0 = dfg_expr_to_value(
+                            &effect_args[1],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let arg1 = dfg_expr_to_value(
+                            &effect_args[2],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let arg2 = dfg_expr_to_value(
+                            &effect_args[3],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let _ = unit_builder.ins().drv(arg0, arg1, arg2);
+                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_DRVCOND) {
+                        let arg0 = dfg_expr_to_value(
+                            &effect_args[1],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let arg1 = dfg_expr_to_value(
+                            &effect_args[2],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let arg2 = dfg_expr_to_value(
+                            &effect_args[3],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let arg3 = dfg_expr_to_value(
+                            &effect_args[4],
+                            unit_builder,
+                            &mut inst_cache,
+                            &mut value_cache,
+                            arg_count,
+                        );
+                        let _ = unit_builder.ins().drv_cond(arg0, arg1, arg2, arg3);
+                    } else if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_CALL)
+                        || *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_INST)
+                    {
+                        let effect_ty = ty_from_expr(&effect_args[0]);
+                        let ext_unit_id = if let GenericExpr::Call(_, _, ext_args) = &effect_args[1]
+                        {
+                            if let Some(GenericExpr::Lit(_, Literal::Int(ext_id))) = ext_args.get(0)
+                            {
+                                usize::try_from(*ext_id).expect("Failure to parse ExtUnit id.")
+                            } else {
+                                panic!("Invalid ExtUnit expression: {:?}", effect_args[1]);
+                            }
+                        } else {
+                            panic!("Invalid ExtUnit expression: {:?}", effect_args[1]);
+                        };
+                        let ins = if let GenericExpr::Lit(_, Literal::Int(ins)) = &effect_args[2] {
+                            u16::try_from(*ins).expect("Failure to convert ins to u16.")
+                        } else {
+                            panic!("Invalid ins count: {:?}", effect_args[2]);
+                        };
+                        let dfg_exprs = vec_dfg_exprs_from_expr(&effect_args[3]);
+                        let args = dfg_exprs
+                            .iter()
+                            .map(|expr| {
+                                dfg_expr_to_value(
+                                    expr,
+                                    unit_builder,
+                                    &mut inst_cache,
+                                    &mut value_cache,
+                                    arg_count,
+                                )
+                            })
+                            .collect_vec();
+                        let ext_unit = *ext_unit_map.entry(ext_unit_id).or_insert_with(|| {
+                            let mut sig = Signature::new();
+                            for value in args.iter().take(ins as usize) {
+                                sig.add_input(unit_builder.value_type(*value));
+                            }
+                            if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_INST) {
+                                for value in args.iter().skip(ins as usize) {
+                                    sig.add_output(unit_builder.value_type(*value));
+                                }
+                            } else if !effect_ty.is_void() {
+                                sig.set_return_type(effect_ty.clone());
+                            }
+                            unit_builder.add_extern(UnitName::anonymous(ext_unit_id as u32), sig)
+                        });
+                        if *effect_symbol == Symbol::new(LLHD_EFFECT_FIELD_CALL) {
+                            let _ = unit_builder.build_inst(
+                                InstData::Call {
+                                    opcode: Opcode::Call,
+                                    unit: ext_unit,
+                                    ins,
+                                    args,
+                                },
+                                effect_ty,
+                            );
+                        } else {
+                            let _ = unit_builder.build_inst(
+                                InstData::Call {
+                                    opcode: Opcode::Inst,
+                                    unit: ext_unit,
+                                    ins,
+                                    args,
+                                },
+                                effect_ty,
+                            );
+                        }
+                    } else {
+                        panic!("Unhandled effect expression: {:?}", effect);
+                    }
+                }
+            }
+        }
+
+        if let GenericExpr::Call(_, term_symbol, term_args) = terminator_expr {
+            if *term_symbol == Symbol::new(LLHD_TERM_FIELD_BR) {
+                let target_id = block_id_from_expr(&term_args[0]);
+                let target = *block_map
+                    .get(&target_id)
+                    .unwrap_or_else(|| panic!("Missing block mapping for {target_id}"));
+                let _ = unit_builder.ins().br(target);
+            } else if *term_symbol == Symbol::new(LLHD_TERM_FIELD_BRCOND) {
+                let cond = dfg_expr_to_value(
+                    &term_args[1],
+                    unit_builder,
+                    &mut inst_cache,
+                    &mut value_cache,
+                    arg_count,
+                );
+                let then_id = block_id_from_expr(&term_args[2]);
+                let else_id = block_id_from_expr(&term_args[3]);
+                let then_bb = *block_map
+                    .get(&then_id)
+                    .unwrap_or_else(|| panic!("Missing block mapping for {then_id}"));
+                let else_bb = *block_map
+                    .get(&else_id)
+                    .unwrap_or_else(|| panic!("Missing block mapping for {else_id}"));
+                let _ = unit_builder.ins().br_cond(cond, then_bb, else_bb);
+            } else if *term_symbol == Symbol::new(LLHD_TERM_FIELD_WAIT)
+                || *term_symbol == Symbol::new(LLHD_TERM_FIELD_WAITTIME)
+            {
+                let target_id = block_id_from_expr(&term_args[0]);
+                let target = *block_map
+                    .get(&target_id)
+                    .unwrap_or_else(|| panic!("Missing block mapping for {target_id}"));
+                let value_ids = vec_value_ids_from_expr(&term_args[1]);
+                let mut values = value_ids
+                    .into_iter()
+                    .map(|value_id| value_from_id(value_id, &value_cache))
+                    .collect_vec();
+                if *term_symbol == Symbol::new(LLHD_TERM_FIELD_WAITTIME) {
+                    let time = values
+                        .first()
+                        .copied()
+                        .expect("WaitTime requires a time value.");
+                    values.remove(0);
+                    let _ = unit_builder.ins().wait_time(target, time, values);
+                } else {
+                    let _ = unit_builder.ins().wait(target, values);
+                }
+            } else if *term_symbol == Symbol::new(LLHD_TERM_FIELD_HALT) {
+                let _ = unit_builder.ins().halt();
+            } else if *term_symbol == Symbol::new(LLHD_TERM_FIELD_RET) {
+                let _ = unit_builder.ins().ret();
+            } else if *term_symbol == Symbol::new(LLHD_TERM_FIELD_RETVALUE) {
+                let value = dfg_expr_to_value(
+                    &term_args[1],
+                    unit_builder,
+                    &mut inst_cache,
+                    &mut value_cache,
+                    arg_count,
+                );
+                let _ = unit_builder.ins().ret_value(value);
+            } else {
+                panic!("Unhandled terminator expression: {:?}", terminator_expr);
+            }
+        }
     }
 }
 
@@ -642,12 +1281,20 @@ fn process_arg_expr(expr: &Expr, type_expr_fifo: &mut LLHDTypeFIFO) {
     if let GenericExpr::Call(_, type_symbol, type_args) = expr {
         if *type_symbol == Symbol::new(LLHD_TYPE_VOID_FIELD) {
             type_expr_fifo.push_back(llhd::void_ty());
+        } else if *type_symbol == Symbol::new(LLHD_TYPE_TIME_FIELD) {
+            type_expr_fifo.push_back(llhd::time_ty());
         } else if *type_symbol == Symbol::new(LLHD_TYPE_INT_FIELD) {
             if let GenericExpr::Lit(_, Literal::Int(iid)) = &type_args[0] {
                 type_expr_fifo.push_back(llhd::int_ty(
                     usize::try_from(*iid).expect("Failure to convert egglog Int to usize."),
                 ));
             };
+        } else if *type_symbol == Symbol::new(LLHD_TYPE_POINTER_FIELD) {
+            process_arg_expr(&type_args[0], type_expr_fifo);
+            let inner_expr = type_expr_fifo
+                .pop_back()
+                .expect("Stack empty despite still trying to process operation.");
+            type_expr_fifo.push_back(llhd::pointer_ty(inner_expr));
         } else if *type_symbol == Symbol::new(LLHD_TYPE_SIGNAL_FIELD) {
             process_arg_expr(&type_args[0], type_expr_fifo);
             let signal_info_expr = type_expr_fifo
@@ -772,6 +1419,7 @@ pub(crate) fn expr_to_unit_data(
     let mut unit_data = UnitData::new(unit_kind, unit_name, unit_sig);
     let mut unit_builder = UnitBuilder::new_anonymous(&mut unit_data);
     let mut expr_fifo: ExprWithIDFIFO = Default::default();
+    let mut cfg_expr: Option<Expr> = None;
 
     if let GenericExpr::Call(_, symbol, ref unit_info_and_data_exprs) = unit_expr {
         if symbol == Symbol::new(LLHD_UNIT_FIELD) && unit_info_and_data_exprs.len() == 6 {
@@ -779,7 +1427,7 @@ pub(crate) fn expr_to_unit_data(
         } else if symbol == Symbol::new(LLHD_UNIT_WITH_CFG_FIELD)
             && unit_info_and_data_exprs.len() == 7
         {
-            process_expr(&unit_info_and_data_exprs[5], &mut expr_fifo);
+            cfg_expr = Some(unit_info_and_data_exprs[6].clone());
         }
     }
 
@@ -787,13 +1435,18 @@ pub(crate) fn expr_to_unit_data(
     let mut int_value_stack: IntValueStack = Default::default();
     let mut time_value_stack: TimeValueStack = Default::default();
 
-    process_expr_fifo(
-        expr_fifo,
-        &mut value_stack,
-        &mut int_value_stack,
-        &mut time_value_stack,
-        &mut unit_builder,
-    );
+    if let Some(cfg_expr) = cfg_expr {
+        let arg_count = unit_builder.sig().args().count();
+        cfg_skeleton_to_unit_data(&mut unit_builder, &cfg_expr, arg_count);
+    } else {
+        process_expr_fifo(
+            expr_fifo,
+            &mut value_stack,
+            &mut int_value_stack,
+            &mut time_value_stack,
+            &mut unit_builder,
+        );
+    }
 
     unit_data
 }
@@ -1178,7 +1831,7 @@ fn effect() -> Command {
     let ty_datatype = Symbol::new(LLHD_TYPE_DATATYPE);
     let llhd_dfg_datatype = Symbol::new(LLHD_DFG_DATATYPE);
     let ext_unit_datatype = Symbol::new(LLHD_EXT_UNIT_DATATYPE);
-    let vec_value_datatype = Symbol::new(LLHD_VEC_VALUE_DATATYPE);
+    let _vec_value_datatype = Symbol::new(LLHD_VEC_VALUE_DATATYPE);
     Command::Datatype {
         span: DUMMY_SPAN.clone(),
         name: Symbol::new(LLHD_EFFECT_DATATYPE),
@@ -1241,7 +1894,7 @@ fn effect() -> Command {
                     ty_datatype.clone(),
                     ext_unit_datatype.clone(),
                     i64_sort.name(),
-                    vec_value_datatype.clone(),
+                    Symbol::new(LLHD_DFG_CTX_DATATYPE),
                 ],
                 cost: None,
             },
@@ -1252,7 +1905,7 @@ fn effect() -> Command {
                     ty_datatype,
                     ext_unit_datatype,
                     i64_sort.name(),
-                    vec_value_datatype,
+                    Symbol::new(LLHD_DFG_CTX_DATATYPE),
                 ],
                 cost: None,
             },
