@@ -321,7 +321,7 @@ fn dfg_expression_tree_triple_output_no_redundant_insts_roundtrip() {
 // }
 
 fn rewrite_module(module: &Module) -> UnitData {
-    let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
+    let llhd_dfg_sort = LLHDEgglogSorts::llhd_full();
     let mut egraph = EGraph::default();
     let _egraph_msgs_datatypes = egraph.run_program(llhd_dfg_sort.into());
     let _egraph_msgs_rules =

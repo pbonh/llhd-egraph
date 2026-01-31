@@ -14,7 +14,7 @@ use egglog_program::*;
 
 #[derive(Debug, Clone, Default, TypedBuilder)]
 pub struct LLHDEgglogProgram {
-    #[builder(default=LLHDEgglogSorts::llhd_dfg())]
+    #[builder(default=LLHDEgglogSorts::llhd_full())]
     sorts: LLHDEgglogSorts,
 
     #[builder(default)]
@@ -130,7 +130,7 @@ where
 
 impl From<LLHDModule> for EgglogProgram {
     fn from(module: LLHDModule) -> Self {
-        let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
+        let llhd_dfg_sort = LLHDEgglogSorts::llhd_full();
         let module_facts = LLHDEgglogFacts::from_module(&module);
         let unit_symbols: EgglogSymbols = module.units().map(unit_symbol).collect();
         EgglogProgramBuilder::initialize()
@@ -150,7 +150,7 @@ pub struct LLHDEgglogRuleset {
 impl From<LLHDEgglogRuleset> for EgglogProgram {
     fn from(data: LLHDEgglogRuleset) -> Self {
         let (module, llhd_rules, llhd_schedules) = (data.module, data.rules, data.schedules);
-        let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
+        let llhd_dfg_sort = LLHDEgglogSorts::llhd_full();
         let module_facts = LLHDEgglogFacts::from_module(&module);
         let rules = EgglogRules::from(llhd_rules);
         let schedules = EgglogSchedules::from(llhd_schedules);
@@ -167,7 +167,7 @@ impl From<LLHDEgglogRuleset> for EgglogProgram {
 
 impl From<&LLHDModule> for EgglogProgram {
     fn from(module: &LLHDModule) -> Self {
-        let llhd_dfg_sort = LLHDEgglogSorts::llhd_dfg();
+        let llhd_dfg_sort = LLHDEgglogSorts::llhd_full();
         let module_facts = LLHDEgglogFacts::from_module(module);
         let unit_symbols: EgglogSymbols = module.units().map(unit_symbol).collect();
         EgglogProgramBuilder::initialize()

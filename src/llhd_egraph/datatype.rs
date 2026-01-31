@@ -14,6 +14,13 @@ impl LLHDEgglogSorts {
     pub fn llhd_dfg() -> Self {
         let mut unit_type_sorts = unit::unit_types();
         let mut inst_sorts = inst::dfg();
+        unit_type_sorts.append(&mut inst_sorts);
+        Self(unit_type_sorts)
+    }
+
+    pub fn llhd_full() -> Self {
+        let mut unit_type_sorts = unit::unit_types();
+        let mut inst_sorts = inst::dfg();
         let mut unit_sorts = unit::dfg();
         unit_type_sorts.append(&mut inst_sorts);
         unit_type_sorts.append(&mut unit_sorts);
@@ -23,7 +30,7 @@ impl LLHDEgglogSorts {
 
 impl Default for LLHDEgglogSorts {
     fn default() -> Self {
-        Self::llhd_dfg()
+        Self::llhd_full()
     }
 }
 
